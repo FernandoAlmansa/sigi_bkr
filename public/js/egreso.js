@@ -326,7 +326,7 @@ formEgreso?.addEventListener('submit', async e => {
       resetForm();
 
       // Refrescar cache de insumos para que el badge del navbar se actualice
-      if (window.cargarDashboard) window.cargarDashboard();
+      if (window.refrescarDashboard) window.refrescarDashboard();
       cargarInsumos();
     } else {
       // Error del servidor (incluyendo RD01 si pasó el frontend)

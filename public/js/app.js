@@ -711,9 +711,11 @@ function mostrarResultado(div, tipo, msg) {
   setTimeout(() => div.classList.add('hidden'), 6000);
 }
 
-// Exponer para egreso.js
-window.insumosCache = insumosCache;
-window.cargarDashboard = () => currentDashboardTipo && cargarDashboard(currentDashboardTipo);
+// Exponer para egreso.js.
+// OJO: no reasignar window.cargarDashboard. En un script clásico la función
+// global ES window.cargarDashboard; pisarla con un wrapper que la llama
+// generaba una recursión infinita y el filtro por tipo nunca se aplicaba.
+window.refrescarDashboard = () => cargarDashboard(currentDashboardTipo);
 window.refrescarAutocompletar = () => {}; // se sobreescribe en egreso.js
 
 /* ── INICIO ── */
