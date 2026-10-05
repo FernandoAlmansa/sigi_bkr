@@ -1,0 +1,10 @@
+node_modules/
+.env
+.DS_Store
+*.sql.local
+datos.sql
+
+# Imágenes subidas en desarrollo (en producción van a Supabase Storage)
+public/uploads/*
+!public/uploads/.gitkeep
+insumos.csv

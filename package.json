@@ -1,0 +1,33 @@
+{
+  "name": "sigi-bkr",
+  "version": "1.0.0",
+  "description": "Sistema de gestión de inventario para el taller Bikinis Río",
+  "main": "server.js",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "migrate": "node -e \"require('./db/migraciones').ejecutarMigraciones().then(()=>process.exit(0))\"",
+    "migrar-imagenes": "node scripts/migrar-imagenes.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@supabase/storage-js": "^2.117.2",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "helmet": "^8.2.0",
+    "multer": "^2.1.1",
+    "nodemailer": "^8.0.11",
+    "pg": "^8.21.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
