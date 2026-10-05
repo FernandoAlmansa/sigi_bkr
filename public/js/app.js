@@ -84,7 +84,7 @@ function stockDisplay(insumo, campo = 'actual') {
   const valor = campo === 'minimo' ? parseFloat(insumo.stock_minimo) : parseFloat(insumo.stock_actual);
   if (esTela(insumo)) {
     const rollos = valor / METROS_POR_ROLLO;
-    return `${num(valor)} m (${num(rollos)} rollos)`;
+    return `${num(valor)} m (${num(rollos)} ${rollos === 1 ? "rollo" : "rollos"})`;
   }
   return `${num(valor)} ${esc(insumo.unidad_medida)}`;
 }
@@ -241,7 +241,7 @@ function renderTablaInsumos(insumos, emptyMsg = 'No hay insumos para este tipo.'
       : '';
     return `
       <tr>
-        <td class="td-with-img">${thumb}<span>${esc(i.nombre)}${formatAtributos(i.atributos) ? `<br><small class="attr-sub">${esc(formatAtributos(i.atributos))}</small>` : ''}</span></td>
+        <td><div class="td-with-img">${thumb}<span>${esc(i.nombre)}${formatAtributos(i.atributos) ? `<br><small class="attr-sub">${esc(formatAtributos(i.atributos))}</small>` : ''}</span></div></td>
         <td>${esc(i.tipo_nombre || '—')}</td>
         <td class="stock-value ${critico ? 'stock-critico' : 'stock-normal'}">
           ${esTela(i) ? stockDisplay(i) : num(i.stock_actual)}

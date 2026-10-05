@@ -377,6 +377,7 @@ html, body {
   padding: 12px 16px;
   color: var(--text);
   border-bottom: 1px solid var(--border);
+  vertical-align: middle;
 }
 
 .data-table tbody tr:last-child td { border-bottom: none; }
@@ -867,6 +868,8 @@ html, body {
 /* ── IMÁGENES DE INSUMOS ── */
 
 /* Miniatura en la tabla del dashboard */
+/* El flex va en un div interno: si se aplica al <td>, deja de ser
+   table-cell, no se estira al alto de la fila y la línea queda desfasada. */
 .td-with-img {
   display: flex;
   align-items: center;
