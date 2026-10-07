@@ -419,6 +419,12 @@ html, body {
   border: 1px solid var(--success);
 }
 
+.badge-ajuste {
+  background: #FFF6E5;
+  color: #9A6400;
+  border: 1px solid #E8B44C;
+}
+
 .badge-egreso {
   background: var(--pink-soft);
   color: var(--pink-deep);
@@ -1064,3 +1070,18 @@ html, body {
 .unidad-nombre { font-size: 13px; font-weight: 600; color: var(--text); }
 .unidad-item .btn-editar { padding: 3px 7px; font-size: 13px; }
 .unidad-item .btn-editar:disabled { opacity: .35; cursor: not-allowed; }
+
+/* ── AJUSTE DE STOCK Y AVISOS ── */
+input[readonly].form-control { background: var(--bg); color: var(--text-muted); cursor: not-allowed; }
+.ajuste-box { border: 1px dashed var(--border-strong); border-radius: var(--radius-md); padding: 10px 14px; margin: 4px 0 16px; }
+.ajuste-box .btn-link { padding: 0; }
+#ajuste-campos { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+#ajuste-campos.hidden { display: none !important; }
+#ajuste-campos .modal-actions { margin-top: 0; }
+.campo-hint-aviso { color: #9A6400; }
+
+.filtro-historial { width: auto; min-width: 230px; flex: 0 0 auto; }
+.filtro-fecha { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+.filtro-fecha .form-control { width: auto; padding: 8px 10px; }
+.historial-pie { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; }
+.historial-pie .btn-link { padding: 0; }

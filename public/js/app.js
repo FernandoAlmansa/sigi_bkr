@@ -91,6 +91,17 @@ function formatAtributos(atributos) {
   return Object.values(atributos).filter(Boolean).join(' · ');
 }
 
+/* Características para mostrar junto al nombre, sin repetir lo que el nombre
+   ya dice ("Argolla grande níquel" no necesita abajo "Argolla"). */
+function atributosVisibles(insumo) {
+  const nombre = String(insumo?.nombre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const atr = insumo?.atributos;
+  if (!atr || typeof atr !== 'object') return '';
+  return Object.values(atr).filter(Boolean)
+    .filter(v => !nombre.includes(String(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()))
+    .join(' · ');
+}
+
 /* ── Unidades y presentaciones ──
    El stock se guarda siempre en la unidad base del insumo (unidad_medida).
    Las presentaciones son otras formas de contarlo: rollo = 20 metros,
@@ -223,7 +234,7 @@ function showPage(pageId) {
 
   // Acciones al cambiar de página
   if (pageId === 'dashboard') inicializarDashboard();
-  if (pageId === 'historial') { /* manual via botón */ }
+  if (pageId === 'historial') cargarHistorial({ inicial: true });
   if (pageId === 'egreso') refrescarAutocompletar();
   if (pageId === 'ingreso') poblarSelectIngreso();
   if (pageId === 'catalogo') cargarTipos();
@@ -348,7 +359,7 @@ function renderTablaInsumos(insumos, emptyMsg = 'No hay insumos en esta categor�
       : '';
     return `
       <tr>
-        <td><div class="td-with-img">${thumb}<span>${esc(i.nombre)}${formatAtributos(i.atributos) ? `<br><small class="attr-sub">${esc(formatAtributos(i.atributos))}</small>` : ''}</span></div></td>
+        <td><div class="td-with-img">${thumb}<span>${esc(i.nombre)}${atributosVisibles(i) ? `<br><small class="attr-sub">${esc(atributosVisibles(i))}</small>` : ''}</span></div></td>
         <td>${esc(i.tipo_nombre || '—')}</td>
         <td class="stock-value ${critico ? 'stock-critico' : 'stock-normal'}">${stockDisplay(i)}</td>
         <td class="stock-value">${stockDisplay(i, 'minimo')}</td>
@@ -413,37 +424,88 @@ document.querySelectorAll('.filtro-btn').forEach(btn => {
 });
 
 /* ── HISTORIAL ── */
-document.getElementById('btn-cargar-historial')?.addEventListener('click', cargarHistorial);
+document.getElementById('btn-cargar-historial')?.addEventListener('click', () => cargarHistorial());
+document.getElementById('btn-historial-mas')?.addEventListener('click', () => cargarHistorial({ mas: true }));
 
-async function cargarHistorial() {
-  const tipo  = document.getElementById('filtro-tipo').value;
+/*
+ * Historial paginado y acotado por fechas: al entrar trae sólo el mes en
+ * curso (una consulta chica, sobre el índice por fecha). Para ver más,
+ * eligen otras fechas y tocan "Buscar", o "Cargar más" pide la página siguiente.
+ */
+const HISTORIAL_PAGINA = 50;
+let historialOffset = 0;
+
+function fechaInput(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function filaHistorial(m) {
+  return `
+      <tr>
+        <td>${formatFecha(m.fecha)}</td>
+        <td>${esc(m.insumo_nombre)}${m.observacion ? `<br><small class="attr-sub">${esc(m.observacion)}</small>` : ''}</td>
+        <td><span class="badge badge-${m.tipo_movimiento.toLowerCase()}">${m.tipo_movimiento}</span></td>
+        <td class="stock-value">${m.tipo_movimiento === 'AJUSTE'
+          ? `contado: ${m.presentacion ? `${num(m.cantidad_presentacion)} ${esc(plural(m.presentacion, m.cantidad_presentacion))}` : `${num(m.stock_resultante)} ${esc(m.unidad_medida)}`} <small class="attr-sub">(dif. ${num(m.cantidad)} ${esc(m.unidad_medida)})</small>`
+          : m.presentacion
+            ? `${num(m.cantidad_presentacion)} ${esc(plural(m.presentacion, m.cantidad_presentacion))} <small class="attr-sub">(${num(m.cantidad)} ${esc(m.unidad_medida)})</small>`
+            : `${num(m.cantidad)} ${esc(m.unidad_medida)}`}</td>
+        <td class="stock-value">${num(m.stock_resultante)} ${esc(m.unidad_medida)}</td>
+        <td>${esc(m.usuario || '—')}</td>
+      </tr>`;
+}
+
+async function cargarHistorial({ inicial = false, mas = false } = {}) {
   const tbody = document.getElementById('tbody-historial');
-  tbody.innerHTML = '<tr><td colspan="6" class="loading-row">Cargando...</td></tr>';
+  const desdeEl = document.getElementById('filtro-desde');
+  const hastaEl = document.getElementById('filtro-hasta');
+  const info = document.getElementById('historial-info');
+  const btnMas = document.getElementById('btn-historial-mas');
+
+  // Primera vez: del 1° del mes a hoy.
+  if (inicial && !desdeEl.value) {
+    const hoy = new Date();
+    desdeEl.value = fechaInput(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
+    hastaEl.value = fechaInput(hoy);
+  }
+
+  const params = new URLSearchParams({ limit: HISTORIAL_PAGINA });
+  const tipo = document.getElementById('filtro-tipo').value;
+  if (tipo) params.set('tipo', tipo);
+  // Las fechas se mandan como instantes de la hora local (Argentina), de 00:00 a 23:59.
+  if (desdeEl.value) params.set('desde', new Date(`${desdeEl.value}T00:00:00`).toISOString());
+  if (hastaEl.value) params.set('hasta', new Date(`${hastaEl.value}T23:59:59.999`).toISOString());
+
+  historialOffset = mas ? historialOffset + HISTORIAL_PAGINA : 0;
+  params.set('offset', historialOffset);
+
+  if (!mas) tbody.innerHTML = '<tr><td colspan="6" class="loading-row">Cargando...</td></tr>';
+  btnMas.disabled = true;
 
   try {
-    const url   = `${API}/movimientos?limit=100${tipo ? `&tipo=${tipo}` : ''}`;
-    const res   = await fetch(url);
+    const res   = await fetch(`${API}/movimientos?${params}`);
     const datos = await res.json();
+    if (!res.ok) throw new Error(datos.error);
 
-    if (datos.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" class="loading-row">No hay movimientos registrados.</td></tr>';
+    if (!mas && datos.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="loading-row">No hay movimientos en ese período. Probá ampliando las fechas.</td></tr>';
+      info.textContent = '';
+      btnMas.classList.add('hidden');
       return;
     }
 
-    tbody.innerHTML = datos.map(m => `
-      <tr>
-        <td>${formatFecha(m.fecha)}</td>
-        <td>${esc(m.insumo_nombre)}</td>
-        <td><span class="badge badge-${m.tipo_movimiento.toLowerCase()}">${m.tipo_movimiento}</span></td>
-        <td class="stock-value">${m.presentacion
-          ? `${num(m.cantidad_presentacion)} ${esc(plural(m.presentacion, m.cantidad_presentacion))} <small class="attr-sub">(${num(m.cantidad)} ${esc(m.unidad_medida)})</small>`
-          : `${num(m.cantidad)} ${esc(m.unidad_medida)}`}</td>
-        <td class="stock-value">${num(m.stock_resultante)} ${esc(m.unidad_medida)}</td>
-        <td>${esc(m.usuario || '—')}</td>
-      </tr>
-    `).join('');
+    const html = datos.map(filaHistorial).join('');
+    if (mas) tbody.insertAdjacentHTML('beforeend', html); else tbody.innerHTML = html;
+
+    const mostrados = tbody.querySelectorAll('tr').length;
+    const hayMas = datos.length === HISTORIAL_PAGINA;
+    info.textContent = `${mostrados} movimiento${mostrados === 1 ? '' : 's'}${hayMas ? ' (hay más)' : ''}`;
+    btnMas.classList.toggle('hidden', !hayMas);
   } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="6" class="loading-row">Error al cargar historial.</td></tr>`;
+    if (!mas) tbody.innerHTML = '<tr><td colspan="6" class="loading-row">Error al cargar historial.</td></tr>';
+    info.textContent = 'Error al cargar historial.';
+  } finally {
+    btnMas.disabled = false;
   }
 }
 
@@ -519,7 +581,7 @@ document.getElementById('ingreso-tipo')?.addEventListener('change', async () => 
     ingresoCache = await res.json();
     selInsumo.innerHTML = ingresoCache.length
       ? '<option value="">— Seleccionar insumo —</option>' +
-        ingresoCache.map(i => `<option value="${i.id}">${esc(i.nombre)}${formatAtributos(i.atributos) ? ` · ${esc(formatAtributos(i.atributos))}` : ''} (${esc(cantidadTexto(i, i.stock_actual))})</option>`).join('')
+        ingresoCache.map(i => `<option value="${i.id}">${esc(i.nombre)}${atributosVisibles(i) ? ` · ${esc(atributosVisibles(i))}` : ''} (${esc(cantidadTexto(i, i.stock_actual))})</option>`).join('')
       : '<option value="">No hay insumos en esta categoría</option>';
     selInsumo.disabled = !ingresoCache.length;
   } catch {
@@ -609,10 +671,33 @@ function enlazarFormStock(prefijo) {
 enlazarFormStock('edit');
 enlazarFormStock('cat');
 
+/* Aviso si el nombre repite la categoría: "Tela Lycra" en la categoría Tela. */
+function sinTildes(t) {
+  return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+function avisoNombreCategoria(nombreId, tipoId, hintId) {
+  const hint = document.getElementById(hintId);
+  if (!hint) return;
+  const cat    = categoriaDe(document.getElementById(tipoId)?.value);
+  const nombre = sinTildes(document.getElementById(nombreId)?.value);
+  const base   = sinTildes(cat?.nombre).replace(/(es|s)$/, '');
+  const repite = cat && base.length >= 3 && nombre.split(/\s+/)[0].replace(/(es|s)$/, '') === base;
+  hint.textContent = repite ? `No hace falta poner "${cat.nombre}" en el nombre: ya está en la categoría.` : '';
+}
+['cat', 'edit'].forEach(pref => {
+  const refrescar = () => avisoNombreCategoria(`${pref}-nombre`, `${pref}-tipo`, `${pref}-nombre-hint`);
+  document.getElementById(`${pref}-nombre`)?.addEventListener('input', refrescar);
+  document.getElementById(`${pref}-tipo`)?.addEventListener('change', refrescar);
+});
+
+let insumoEditando = null;
+
 async function abrirModalEditar(id) {
   const insumo = insumosCache.find(i => i.id === id);
   if (!insumo) return;
   try { await Promise.all([asegurarTipos(), asegurarUnidades()]); } catch { return; }
+  insumoEditando = insumo;
+  prepararAjuste(insumo);
 
   document.getElementById('edit-tipo').innerHTML = opcionesCategorias(insumo.id_tipo);
   document.getElementById('edit-id').value     = insumo.id;
@@ -633,6 +718,7 @@ async function abrirModalEditar(id) {
   }
 
   renderCamposAtributos(insumo.id_tipo, 'edit-atributos-container', insumo.atributos || {});
+  avisoNombreCategoria('edit-nombre', 'edit-tipo', 'edit-nombre-hint');
 
   document.getElementById('resultado-editar')?.classList.add('hidden');
   document.getElementById('modal-editar').classList.remove('hidden');
@@ -664,50 +750,155 @@ document.getElementById('edit-imagen')?.addEventListener('change', e => {
   reader.readAsDataURL(file);
 });
 
+/* Compara presentaciones sin importar el orden ni mayúsculas. */
+function firmaPresentaciones(lista) {
+  return JSON.stringify((lista || [])
+    .map(p => [String(p.nombre || '').trim().toLowerCase(), Number(p.factor)])
+    .sort((x, y) => x[0].localeCompare(y[0])));
+}
+
+/*
+ * El modal manda SOLO los campos que el usuario cambió, y nunca el stock
+ * actual: si mientras alguien edita el nombre otra persona registra un
+ * egreso, guardar no puede volver el stock al valor viejo. El stock se
+ * corrige con un ajuste (abajo), que queda en el Historial.
+ */
 document.getElementById('form-editar-insumo')?.addEventListener('submit', async e => {
   e.preventDefault();
   const id  = document.getElementById('edit-id').value;
   const div = document.getElementById('resultado-editar');
+  const orig = insumoEditando;
+  if (!orig) return;
 
-  const body = {
+  const actual = {
     nombre:         document.getElementById('edit-nombre').value.trim(),
     id_tipo:        parseInt(document.getElementById('edit-tipo').value),
     unidad_medida:  document.getElementById('edit-unidad').value.trim(),
-    stock_actual:   parseFloat(document.getElementById('edit-stock').value),
     stock_minimo:   parseFloat(document.getElementById('edit-minimo').value),
     atributos:      recolectarAtributos('edit-atributos-container'),
     presentaciones: leerPresentaciones('edit-presentaciones'),
   };
 
-  if (!body.nombre || !body.id_tipo || !body.unidad_medida) {
+  if (!actual.nombre || !actual.id_tipo || !actual.unidad_medida) {
     mostrarResultado(div, 'error', 'Completá todos los campos requeridos.');
     return;
   }
 
-  try {
-    const res  = await fetch(`${API}/insumos/${id}`, {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(body)
-    });
-    const data = await res.json();
+  const body = {};
+  if (actual.nombre !== orig.nombre) body.nombre = actual.nombre;
+  if (actual.id_tipo !== orig.id_tipo) body.id_tipo = actual.id_tipo;
+  if (actual.unidad_medida !== orig.unidad_medida) body.unidad_medida = actual.unidad_medida;
+  if (actual.stock_minimo !== Number(orig.stock_minimo)) body.stock_minimo = actual.stock_minimo;
+  if (body.id_tipo || JSON.stringify(actual.atributos) !== JSON.stringify(orig.atributos || {})) body.atributos = actual.atributos;
+  if (firmaPresentaciones(actual.presentaciones) !== firmaPresentaciones(orig.presentaciones)) body.presentaciones = actual.presentaciones;
 
-    if (res.ok) {
-      const fileInput = document.getElementById('edit-imagen');
-      if (fileInput?.files[0]) {
-        const fd = new FormData();
-        fd.append('imagen', fileInput.files[0]);
-        try { await fetch(`${API}/insumos/${id}/imagen`, { method: 'POST', body: fd }); } catch {}
+  if (body.unidad_medida && Number(orig.stock_actual) > 0 &&
+      !confirm(`Cambiar la unidad de "${orig.unidad_medida}" a "${body.unidad_medida}" no convierte el stock: ${num(orig.stock_actual)} ${orig.unidad_medida} pasarían a ser ${num(orig.stock_actual)} ${body.unidad_medida}. ¿Seguro?`)) {
+    return;
+  }
+
+  const fileInput = document.getElementById('edit-imagen');
+  if (!Object.keys(body).length && !fileInput?.files[0]) {
+    mostrarResultado(div, 'error', 'No hay cambios para guardar.');
+    return;
+  }
+
+  try {
+    let data = orig;
+    if (Object.keys(body).length) {
+      const res = await fetch(`${API}/insumos/${id}`, {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body)
+      });
+      data = await res.json();
+      if (!res.ok) {
+        mostrarResultado(div, 'error', mensajeError(data, 'Error al actualizar.'));
+        return;
       }
-      mostrarResultado(div, 'ok', `✓ "${data.nombre}" actualizado.`);
-      insumosCache = [];
-      await cargarDashboard(currentDashboardTipo);
-      setTimeout(cerrarModal, 1200);
-    } else {
-      mostrarResultado(div, 'error', mensajeError(data, 'Error al actualizar.'));
     }
+
+    if (fileInput?.files[0]) {
+      const fd = new FormData();
+      fd.append('imagen', fileInput.files[0]);
+      try { await fetch(`${API}/insumos/${id}/imagen`, { method: 'POST', body: fd }); } catch {}
+    }
+    mostrarResultado(div, 'ok', `✓ "${data.nombre}" actualizado.`);
+    insumosCache = [];
+    await cargarDashboard(currentDashboardTipo);
+    setTimeout(cerrarModal, 1200);
   } catch {
     mostrarResultado(div, 'error', 'Error de conexión.');
+  }
+});
+
+/* ── AJUSTE DE STOCK (recuento físico) ── */
+function prepararAjuste(insumo) {
+  document.getElementById('ajuste-campos').classList.add('hidden');
+  document.getElementById('ajuste-cantidad').value = '';
+  document.getElementById('ajuste-obs').value = '';
+  document.getElementById('ajuste-hint').textContent = '';
+  document.getElementById('resultado-ajuste').classList.add('hidden');
+  const sel = document.getElementById('ajuste-presentacion');
+  sel.innerHTML = `<option value="">${esc(insumo.unidad_medida)}</option>` +
+    (insumo.presentaciones || []).map(p => `<option value="${esc(p.nombre)}">${esc(plural(p.nombre, 2))} (${num(p.factor)} ${esc(insumo.unidad_medida)})</option>`).join('');
+  sel.classList.toggle('hidden', !(insumo.presentaciones || []).length);
+}
+
+function actualizarHintAjuste() {
+  const ins = insumoEditando;
+  const hint = document.getElementById('ajuste-hint');
+  const v = parseFloat(document.getElementById('ajuste-cantidad').value);
+  if (!ins || isNaN(v) || v < 0) { hint.textContent = ''; return; }
+  const contado = v * factorDe(ins, document.getElementById('ajuste-presentacion').value);
+  const dif = contado - Number(ins.stock_actual);
+  hint.textContent = dif === 0
+    ? 'Coincide con el sistema: no hay nada que ajustar.'
+    : `El sistema tiene ${cantidadTexto(ins, Number(ins.stock_actual))}. Quedaría en ${cantidadTexto(ins, contado)} (${dif > 0 ? '+' : ''}${num(dif)} ${ins.unidad_medida}).`;
+}
+
+document.getElementById('btn-abrir-ajuste')?.addEventListener('click', () => {
+  document.getElementById('ajuste-campos').classList.toggle('hidden');
+  document.getElementById('ajuste-cantidad').focus();
+});
+document.getElementById('ajuste-cantidad')?.addEventListener('input', actualizarHintAjuste);
+document.getElementById('ajuste-presentacion')?.addEventListener('change', actualizarHintAjuste);
+
+document.getElementById('btn-registrar-ajuste')?.addEventListener('click', async () => {
+  const ins = insumoEditando;
+  const div = document.getElementById('resultado-ajuste');
+  const cantidad = parseFloat(document.getElementById('ajuste-cantidad').value);
+  if (!ins || isNaN(cantidad) || cantidad < 0) {
+    mostrarResultado(div, 'error', 'Ingresá el stock contado.');
+    return;
+  }
+  try {
+    const res = await fetch(`${API}/movimientos/ajuste`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        id_insumo:    ins.id,
+        cantidad,
+        presentacion: document.getElementById('ajuste-presentacion').value || null,
+        observacion:  document.getElementById('ajuste-obs').value.trim() || null,
+        usuario:      'Admin',
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      mostrarResultado(div, 'error', mensajeError(data, 'No se pudo registrar el ajuste.'));
+      return;
+    }
+    mostrarResultado(div, 'ok', `✓ Ajuste registrado. Stock de ${data.insumo}: ${cantidadTexto(ins, data.nuevo_stock)}.`);
+    ins.stock_actual = data.nuevo_stock;
+    document.getElementById('edit-stock').value = data.nuevo_stock;
+    actualizarFormStock('edit');
+    document.getElementById('ajuste-cantidad').value = '';
+    document.getElementById('ajuste-hint').textContent = '';
+    await cargarDashboard(currentDashboardTipo);
+    insumoEditando = insumosCache.find(i => i.id === ins.id) || ins;
+  } catch {
+    mostrarResultado(div, 'error', 'Error de conexión con el servidor.');
   }
 });
 

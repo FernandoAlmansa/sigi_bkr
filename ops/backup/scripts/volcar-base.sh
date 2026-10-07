@@ -35,7 +35,7 @@ mv "$TMP" base/sigi_bkr.sql
 "$PSQL" "$DATABASE_URL" -At -F ' | ' -c "
   SELECT 'insumos activos', COUNT(*)::text FROM insumos WHERE activo
   UNION ALL SELECT 'movimientos', COUNT(*)::text FROM movimientos_stock
-  UNION ALL SELECT 'categorías', COUNT(*)::text FROM tipos_insumo WHERE activo
+  UNION ALL SELECT 'categorías', COUNT(*)::text FROM tipos_insumo
   UNION ALL SELECT 'último movimiento', COALESCE(MAX(fecha)::text, '-') FROM movimientos_stock
 " > base/resumen.txt
 echo "Backup de la base OK:"; cat base/resumen.txt

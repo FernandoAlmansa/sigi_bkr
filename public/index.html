@@ -268,17 +268,20 @@
     <section id="page-historial" class="page">
       <div class="page-header">
         <h1>Historial de movimientos</h1>
-        <p class="page-sub">Trazabilidad completa de ingresos y egresos</p>
+        <p class="page-sub">Ingresos, egresos y ajustes. Por defecto, los del mes en curso.</p>
       </div>
 
       <div class="table-container">
         <div class="table-toolbar">
-          <select id="filtro-tipo" class="form-control form-select" style="width:180px">
+          <select id="filtro-tipo" class="form-control form-select filtro-historial">
             <option value="">Todos los movimientos</option>
             <option value="INGRESO">Ingresos</option>
             <option value="EGRESO">Egresos</option>
+            <option value="AJUSTE">Ajustes</option>
           </select>
-          <button class="btn-secondary" id="btn-cargar-historial">Actualizar</button>
+          <label class="filtro-fecha">Desde <input type="date" id="filtro-desde" class="form-control" /></label>
+          <label class="filtro-fecha">Hasta <input type="date" id="filtro-hasta" class="form-control" /></label>
+          <button class="btn-secondary" id="btn-cargar-historial">Buscar</button>
         </div>
         <table class="data-table">
           <thead>
@@ -292,9 +295,13 @@
             </tr>
           </thead>
           <tbody id="tbody-historial">
-            <tr><td colspan="6" class="loading-row">Haga clic en "Actualizar" para cargar.</td></tr>
+            <tr><td colspan="6" class="loading-row">Cargando...</td></tr>
           </tbody>
         </table>
+        <div class="historial-pie">
+          <span id="historial-info" class="attr-sub"></span>
+          <button type="button" id="btn-historial-mas" class="btn-link hidden">Cargar más</button>
+        </div>
       </div>
     </section>
 
@@ -309,7 +316,8 @@
         <form id="form-nuevo-insumo" autocomplete="off">
           <div class="form-group">
             <label class="form-label" for="cat-nombre">Nombre del insumo</label>
-            <input type="text" id="cat-nombre" class="form-control" placeholder="Ej: Tela Lycra Negra" required />
+            <input type="text" id="cat-nombre" class="form-control" placeholder="Ej: Lycra negra" required />
+            <div class="campo-hint campo-hint-aviso" id="cat-nombre-hint"></div>
           </div>
           <div class="form-row">
             <div class="form-group">
@@ -448,6 +456,7 @@
         <div class="form-group">
           <label class="form-label" for="edit-nombre">Nombre</label>
           <input type="text" id="edit-nombre" class="form-control" required />
+          <div class="campo-hint campo-hint-aviso" id="edit-nombre-hint"></div>
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -469,7 +478,7 @@
         <div class="form-row">
           <div class="form-group">
             <label class="form-label" for="edit-stock" id="edit-label-stock">Stock actual</label>
-            <input type="number" id="edit-stock" class="form-control" min="0" step="any" />
+            <input type="number" id="edit-stock" class="form-control" readonly tabindex="-1" title="El stock cambia con ingresos, egresos o un ajuste" />
             <div class="campo-hint" id="edit-stock-hint"></div>
           </div>
           <div class="form-group">
@@ -478,6 +487,25 @@
             <div class="campo-hint" id="edit-minimo-hint"></div>
           </div>
         </div>
+        <!-- Ajuste de stock: el stock no se edita a mano, se corrige con un recuento
+             que queda registrado en el Historial. -->
+        <div class="ajuste-box">
+          <button type="button" class="btn-link" id="btn-abrir-ajuste">¿El stock no coincide con lo que hay? Corregir con un recuento</button>
+          <div id="ajuste-campos" class="hidden">
+            <div class="tela-nota">Contá lo que hay físicamente y cargalo acá. Queda registrado en el Historial como <strong>ajuste</strong>.</div>
+            <div class="cantidad-row ajuste-fila">
+              <input type="number" id="ajuste-cantidad" class="form-control" min="0" step="any" placeholder="Stock contado" />
+              <select id="ajuste-presentacion" class="form-control form-select unidad-select" aria-label="Unidad del recuento"></select>
+            </div>
+            <div class="campo-hint" id="ajuste-hint"></div>
+            <input type="text" id="ajuste-obs" class="form-control" maxlength="200" placeholder="Motivo (opcional): recuento mensual, rotura..." />
+            <div class="modal-actions">
+              <button type="button" class="btn-secondary" id="btn-registrar-ajuste">Registrar ajuste</button>
+            </div>
+            <div id="resultado-ajuste" class="resultado hidden"></div>
+          </div>
+        </div>
+
         <div class="form-group">
           <label class="form-label">Imagen <span class="optional">(opcional)</span></label>
           <div class="imagen-upload-row">

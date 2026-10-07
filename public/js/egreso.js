@@ -88,7 +88,7 @@ inputTexto?.addEventListener('input', () => {
       <li data-id="${i.id}" class="${critico ? 'critico' : ''}">
         ${thumb}
         <span class="autocomplete-nombre">${resaltar(i.nombre, q)}
-          <small style="opacity:0.5;font-size:11px"> — ${i.tipo_nombre || ''}${formatAtributos(i.atributos) ? ' · ' + formatAtributos(i.atributos) : ''}</small>
+          <small style="opacity:0.5;font-size:11px"> — ${i.tipo_nombre || ''}${atributosVisibles(i) ? ' · ' + esc(atributosVisibles(i)) : ''}</small>
         </span>
         <span class="autocomplete-stock ${critico ? 'critico' : ''}">
           ${stockDisplay(i)}
