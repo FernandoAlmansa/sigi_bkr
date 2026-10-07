@@ -10,6 +10,7 @@ class Movimiento {
     id = null, id_insumo, tipo_movimiento, cantidad,
     stock_resultante, observacion = null, usuario = 'Sistema',
     fecha = null, insumo_nombre = null, unidad_medida = null,
+    presentacion = null, cantidad_presentacion = null,
   }) {
     this.id = id;
     this.id_insumo = id_insumo;
@@ -21,6 +22,10 @@ class Movimiento {
     this.fecha = fecha;
     this.insumo_nombre = insumo_nombre;
     this.unidad_medida = unidad_medida;
+    // Lo que cargó el usuario, si lo hizo en una presentación ("2 rollo").
+    // `cantidad` está siempre en unidad base.
+    this.presentacion = presentacion;
+    this.cantidad_presentacion = cantidad_presentacion === null ? null : Number(cantidad_presentacion);
   }
 
   static desdeFila(fila) {

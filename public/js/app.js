@@ -1,63 +1,80 @@
 /* ============================================================
    SIGI-BKR | app.js
-   Navegación + Dashboard + Historial + Catálogo + Ingreso
+   Navegación + Dashboard + Historial + Catálogo + Ingreso + Categorías
    ============================================================ */
 
 // API se define en js/config.js
-const METROS_POR_ROLLO = 20;
 
-/* ── Atributos específicos por tipo ── */
-const CAMPOS_POR_TIPO = {
-  'Tazas/Copas': [
-    { key: 'talle', label: 'Talle', opciones: ['85 (S)', '90 (M)', '95 (L)', '100 (XL)'] }
-  ],
-  'Elástico': [
-    { key: 'ancho_mm', label: 'Ancho', opciones: ['5 mm', '7 mm', '14 mm', '25 mm'] }
-  ],
-  'Herrajes': [
-    { key: 'subtipo', label: 'Tipo de herraje', opciones: ['Regulador', 'Argolla', 'Desmontable', 'Perchita', 'Gancho', 'Broche', 'Dadito', 'Unión'] },
-    { key: 'detalle', label: 'Detalle', tipo: 'text', opcional: true }
-  ],
-  'Arcos': [
-    { key: 'talle', label: 'Talle', opciones: ['90 (S)', '95 (M)', '100 (L)', '110 (XL)', '120 (XXL)'] }
-  ],
-  'Dijes': [
-    { key: 'prenda', label: 'Prenda', opciones: ['Corpiño', 'Bombacha'] },
-    { key: 'color',  label: 'Color', tipo: 'text', opcional: true }
-  ],
-  'Etiquetas': [
-    { key: 'talle', label: 'Talle', tipo: 'text' }
-  ],
-  'Empaque': [
-    { key: 'subtipo', label: 'Tipo de empaque', opciones: ['Sobre e-commerce', 'Bolsa playera', 'Estuche', 'Neceser', 'Caja', 'Loop', 'Cartón'] }
-  ],
-};
+/* ── Unidades de medida (catálogo controlado: GET /api/unidades) ── */
+let unidadesCache = [];
 
-function renderCamposAtributos(tipoNombre, containerId, valores = {}) {
+async function asegurarUnidades(forzar = false) {
+  if (forzar || unidadesCache.length === 0) {
+    const [resU, resP] = await Promise.all([fetch(`${API}/unidades`), fetch(`${API}/unidades/presentaciones`)]);
+    if (!resU.ok) throw new Error(`Error ${resU.status} al cargar unidades`);
+    unidadesCache = await resU.json();
+    const nombres = resP.ok ? await resP.json() : [];
+    const dl = document.getElementById('presentaciones-sugeridas');
+    if (dl) dl.innerHTML = nombres.map(n => `<option value="${esc(n)}"></option>`).join('');
+  }
+  llenarSelectsUnidad();
+  return unidadesCache;
+}
+
+/* Rellena todos los <select class="select-unidad"> conservando el valor elegido. */
+function llenarSelectsUnidad() {
+  document.querySelectorAll('select.select-unidad').forEach(sel => {
+    const valor = sel.value;
+    const vacio = sel.dataset.vacio || '— Elegí la unidad —';
+    sel.innerHTML = `<option value="">${vacio}</option>` +
+      unidadesCache.map(u => `<option value="${esc(u.nombre)}">${esc(u.nombre)}</option>`).join('');
+    sel.value = valor;
+  });
+}
+
+/* ── Categorías (vienen de la base: GET /api/categorias) ── */
+async function asegurarTipos(forzar = false) {
+  if (forzar || tiposCache.length === 0) {
+    const res = await fetch(`${API}/categorias`);
+    if (!res.ok) throw new Error(`Error ${res.status} al cargar categorías`);
+    tiposCache = await res.json();
+  }
+  return tiposCache;
+}
+
+function categoriaDe(idTipo) {
+  return tiposCache.find(t => t.id === Number(idTipo)) || null;
+}
+
+function opcionesCategorias(seleccionada = null, vacio = '— Seleccionar —') {
+  return `<option value="">${vacio}</option>` +
+    tiposCache.map(t => `<option value="${t.id}"${t.id === Number(seleccionada) ? ' selected' : ''}>${esc(t.nombre)}</option>`).join('');
+}
+
+/* ── Características: el formulario se arma con los campos que define la categoría ── */
+function renderCamposAtributos(idTipo, containerId, valores = {}) {
   const container = document.getElementById(containerId);
   if (!container) return;
-  const campos = CAMPOS_POR_TIPO[tipoNombre] || [];
+  const campos = categoriaDe(idTipo)?.campos || [];
   if (!campos.length) { container.innerHTML = ''; return; }
 
-  container.innerHTML = '<div class="form-row">' +
+  container.innerHTML = '<div class="form-row form-row-wrap">' +
     campos.map(c => {
-      const val      = valores[c.key] || '';
-      const labelSfx = c.opcional ? ' <span class="optional">(opcional)</span>' : '';
-      if (c.opciones) {
-        return `
-          <div class="form-group">
-            <label class="form-label">${c.label}${labelSfx}</label>
-            <select class="form-control form-select atributo-campo" data-key="${c.key}" ${!c.opcional ? 'required' : ''}>
-              <option value="">— Seleccionar —</option>
-              ${c.opciones.map(o => `<option value="${o}"${val === o ? ' selected' : ''}>${esc(o)}</option>`).join('')}
-            </select>
-          </div>`;
+      const val      = valores?.[c.clave] ?? '';
+      const labelSfx = c.obligatorio ? '' : ' <span class="optional">(opcional)</span>';
+      const req      = c.obligatorio ? 'required' : '';
+      let control;
+      if (c.tipo === 'opciones') {
+        control = `
+          <select class="form-control form-select atributo-campo" data-key="${esc(c.clave)}" ${req}>
+            <option value="">— Seleccionar —</option>
+            ${c.opciones.map(o => `<option value="${esc(o)}"${val === o ? ' selected' : ''}>${esc(o)}</option>`).join('')}
+          </select>`;
+      } else {
+        const tipo = c.tipo === 'numero' ? 'number" step="any' : 'text';
+        control = `<input type="${tipo}" class="form-control atributo-campo" data-key="${esc(c.clave)}" value="${esc(val)}" placeholder="${esc(c.etiqueta)}..." ${req} />`;
       }
-      return `
-        <div class="form-group">
-          <label class="form-label">${c.label}${labelSfx}</label>
-          <input type="text" class="form-control atributo-campo" data-key="${c.key}" value="${esc(val)}" placeholder="${c.label}..." ${!c.opcional ? 'required' : ''} />
-        </div>`;
+      return `<div class="form-group"><label class="form-label">${esc(c.etiqueta)}${labelSfx}</label>${control}</div>`;
     }).join('') + '</div>';
 }
 
@@ -74,19 +91,113 @@ function formatAtributos(atributos) {
   return Object.values(atributos).filter(Boolean).join(' · ');
 }
 
-function esTela(insumo) {
-  return !!insumo?.tipo_nombre?.toLowerCase().includes('tela');
+/* ── Unidades y presentaciones ──
+   El stock se guarda siempre en la unidad base del insumo (unidad_medida).
+   Las presentaciones son otras formas de contarlo: rollo = 20 metros,
+   paquete = 100 unidades. Las define cada insumo (y la categoría sugiere). */
+function plural(nombre, n) {
+  const s = String(nombre || '');
+  if (Math.abs(Number(n)) === 1 || /s$/i.test(s)) return s;
+  if (/z$/i.test(s)) return s.slice(0, -1) + 'ces';
+  return /[aeiouáéíóú]$/i.test(s) ? s + 's' : s + 'es';
 }
 
-/* Devuelve el stock de un insumo listo para mostrar.
-   Para tela siempre trabaja en metros y agrega la conversión a rollos. */
+/** La presentación más grande que entra al menos una vez (si no, la más chica). */
+function presentacionParaMostrar(insumo, valor) {
+  const ps = (insumo?.presentaciones || []).filter(p => Number(p.factor) > 1)
+    .sort((a, b) => a.factor - b.factor);
+  if (!ps.length) return null;
+  const entran = ps.filter(p => Math.abs(valor) >= p.factor);
+  return entran.length ? entran[entran.length - 1] : ps[0];
+}
+
+/* Stock listo para mostrar: "400 metros (20 rollos)". */
 function stockDisplay(insumo, campo = 'actual') {
-  const valor = campo === 'minimo' ? parseFloat(insumo.stock_minimo) : parseFloat(insumo.stock_actual);
-  if (esTela(insumo)) {
-    const rollos = valor / METROS_POR_ROLLO;
-    return `${num(valor)} m (${num(rollos)} ${rollos === 1 ? "rollo" : "rollos"})`;
-  }
-  return `${num(valor)} ${esc(insumo.unidad_medida)}`;
+  const valor = Number(campo === 'minimo' ? insumo.stock_minimo : insumo.stock_actual);
+  return cantidadDisplay(insumo, valor);
+}
+
+/** Versión texto plano (para textContent / <option>). */
+function cantidadTexto(insumo, valor) {
+  const base = `${num(valor)} ${insumo?.unidad_medida || ''}`;
+  const p = presentacionParaMostrar(insumo, valor);
+  if (!p) return base;
+  const enPres = valor / p.factor;
+  return `${base} (${num(enPres)} ${plural(p.nombre, enPres)})`;
+}
+
+function cantidadDisplay(insumo, valor) {
+  return esc(cantidadTexto(insumo, valor));
+}
+
+function factorDe(insumo, nombrePresentacion) {
+  if (!nombrePresentacion) return 1;
+  const p = (insumo?.presentaciones || []).find(x => x.nombre === nombrePresentacion);
+  return p ? Number(p.factor) : 1;
+}
+
+function describirPresentaciones(insumo) {
+  return (insumo?.presentaciones || [])
+    .map(p => `1 ${esc(p.nombre)} = ${num(p.factor)} ${esc(insumo.unidad_medida)}`).join(' · ');
+}
+
+/* ── Editor de presentaciones (alta, edición y categorías) ── */
+function renderEditorPresentaciones(containerId, lista = [], unidad = '') {
+  const c = document.getElementById(containerId);
+  if (!c) return;
+  c.dataset.unidad = unidad || '';
+  c.innerHTML = `<div class="editor-lista"></div>
+    <button type="button" class="btn-link editor-agregar">+ Agregar presentación</button>`;
+  (lista || []).forEach(p => agregarFilaPresentacion(c, p));
+  c.querySelector('.editor-agregar').addEventListener('click', () => {
+    agregarFilaPresentacion(c, {});
+    c.querySelector('.editor-fila:last-child .pres-nombre')?.focus();
+  });
+}
+
+function agregarFilaPresentacion(c, p = {}) {
+  const fila = document.createElement('div');
+  fila.className = 'editor-fila';
+  fila.innerHTML = `
+    <span class="editor-texto">1</span>
+    <input type="text" class="form-control pres-nombre" list="presentaciones-sugeridas" placeholder="rollo, paquete, caja..." maxlength="40" value="${esc(p.nombre || '')}" />
+    <span class="editor-texto">=</span>
+    <input type="number" class="form-control pres-factor" min="0.001" step="any" placeholder="20" value="${p.factor ?? ''}" />
+    <span class="editor-texto pres-unidad">${esc(c.dataset.unidad || 'unid. base')}</span>
+    <button type="button" class="editor-quitar" title="Quitar">✕</button>`;
+  fila.querySelector('.editor-quitar').addEventListener('click', () => fila.remove());
+  c.querySelector('.editor-lista').appendChild(fila);
+}
+
+function actualizarUnidadEditor(containerId, unidad) {
+  const c = document.getElementById(containerId);
+  if (!c) return;
+  c.dataset.unidad = unidad || '';
+  c.querySelectorAll('.pres-unidad').forEach(s => { s.textContent = unidad || 'unid. base'; });
+}
+
+function leerPresentaciones(containerId) {
+  return [...(document.getElementById(containerId)?.querySelectorAll('.editor-fila') || [])]
+    .map(f => ({
+      nombre: f.querySelector('.pres-nombre').value.trim(),
+      factor: f.querySelector('.pres-factor').value === '' ? null : Number(f.querySelector('.pres-factor').value),
+    }))
+    .filter(p => p.nombre || p.factor !== null);
+}
+
+/** Texto de ayuda bajo un campo de stock: "= 20 rollos". */
+function hintConversion(elId, valor, unidad, presentaciones) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const v = Number(valor);
+  const p = presentacionParaMostrar({ presentaciones }, v);
+  el.textContent = (p && v > 0 && unidad) ? `= ${num(v / p.factor)} ${plural(p.nombre, v / p.factor)}` : '';
+}
+
+/** Mensaje de error del backend, con el detalle de validación si lo hay. */
+function mensajeError(data, porDefecto) {
+  const base = data?.error || porDefecto;
+  return data?.errores?.length ? `${base} ${data.errores.join(' ')}` : base;
 }
 
 /* ── Estado global ── */
@@ -116,6 +227,7 @@ function showPage(pageId) {
   if (pageId === 'egreso') refrescarAutocompletar();
   if (pageId === 'ingreso') poblarSelectIngreso();
   if (pageId === 'catalogo') cargarTipos();
+  if (pageId === 'categorias') cargarPaginaCategorias();
 }
 
 navLinks.forEach(link => {
@@ -128,15 +240,10 @@ navLinks.forEach(link => {
 /* ── DASHBOARD ── */
 async function inicializarDashboard() {
   // Cargar tipos para el select
-  if (tiposCache.length === 0) {
-    try {
-      const res  = await fetch(`${API}/insumos/tipos`);
-      tiposCache = await res.json();
-    } catch { return; }
-  }
+  try { await asegurarTipos(); } catch { return; }
   const sel = document.getElementById('dashboard-tipo');
   if (sel) {
-    sel.innerHTML = '<option value="">— Todos los insumos —</option>' +
+    sel.innerHTML = '<option value="">— Todas las categorías —</option>' +
       tiposCache.map(t => `<option value="${t.id}"${t.id === currentDashboardTipo ? ' selected' : ''}>${esc(t.nombre)}</option>`).join('');
   }
 
@@ -226,7 +333,7 @@ function renderPanelAlertas(insumos) {
   `).join('');
 }
 
-function renderTablaInsumos(insumos, emptyMsg = 'No hay insumos para este tipo.') {
+function renderTablaInsumos(insumos, emptyMsg = 'No hay insumos en esta categoría.') {
   const tbody = document.getElementById('tbody-insumos');
 
   if (insumos.length === 0) {
@@ -243,11 +350,9 @@ function renderTablaInsumos(insumos, emptyMsg = 'No hay insumos para este tipo.'
       <tr>
         <td><div class="td-with-img">${thumb}<span>${esc(i.nombre)}${formatAtributos(i.atributos) ? `<br><small class="attr-sub">${esc(formatAtributos(i.atributos))}</small>` : ''}</span></div></td>
         <td>${esc(i.tipo_nombre || '—')}</td>
-        <td class="stock-value ${critico ? 'stock-critico' : 'stock-normal'}">
-          ${esTela(i) ? stockDisplay(i) : num(i.stock_actual)}
-        </td>
-        <td class="stock-value">${esTela(i) ? stockDisplay(i, 'minimo') : num(i.stock_minimo)}</td>
-        <td>${esTela(i) ? 'metros' : esc(i.unidad_medida)}</td>
+        <td class="stock-value ${critico ? 'stock-critico' : 'stock-normal'}">${stockDisplay(i)}</td>
+        <td class="stock-value">${stockDisplay(i, 'minimo')}</td>
+        <td>${esc(i.unidad_medida)}</td>
         <td>
           <span class="badge ${critico ? 'badge-critico' : 'badge-normal'}">
             ${critico ? 'Crítico' : 'Normal'}
@@ -330,7 +435,9 @@ async function cargarHistorial() {
         <td>${formatFecha(m.fecha)}</td>
         <td>${esc(m.insumo_nombre)}</td>
         <td><span class="badge badge-${m.tipo_movimiento.toLowerCase()}">${m.tipo_movimiento}</span></td>
-        <td class="stock-value">${num(m.cantidad)} ${esc(m.unidad_medida)}</td>
+        <td class="stock-value">${m.presentacion
+          ? `${num(m.cantidad_presentacion)} ${esc(plural(m.presentacion, m.cantidad_presentacion))} <small class="attr-sub">(${num(m.cantidad)} ${esc(m.unidad_medida)})</small>`
+          : `${num(m.cantidad)} ${esc(m.unidad_medida)}`}</td>
         <td class="stock-value">${num(m.stock_resultante)} ${esc(m.unidad_medida)}</td>
         <td>${esc(m.usuario || '—')}</td>
       </tr>
@@ -341,45 +448,63 @@ async function cargarHistorial() {
 }
 
 /* ── INGRESO ── */
-function actualizarUiBadgeIngreso() {
+function insumoIngreso() {
   const id = parseInt(document.getElementById('select-ingreso-insumo')?.value);
-  const insumo = ingresoCache.find(i => i.id === id);
-  const badge = document.getElementById('ingreso-badge-unidad');
-  const nota  = document.getElementById('ingreso-tela-nota');
+  return ingresoCache.find(i => i.id === id) || null;
+}
 
-  if (esTela(insumo)) {
-    if (badge) badge.textContent = 'rollos';
-    nota?.classList.remove('hidden');
-  } else {
-    if (badge) badge.textContent = insumo?.unidad_medida || 'unid.';
-    nota?.classList.add('hidden');
+/* Muestra el selector de presentación si el insumo tiene alguna, y la conversión. */
+function actualizarUiBadgeIngreso() {
+  const insumo = insumoIngreso();
+  const badge  = document.getElementById('ingreso-badge-unidad');
+  const sel    = document.getElementById('ingreso-presentacion');
+  const tienePres = !!insumo?.presentaciones?.length;
+
+  if (sel) {
+    sel.innerHTML = insumo
+      ? `<option value="">${esc(insumo.unidad_medida)}</option>` +
+        insumo.presentaciones.map(p => `<option value="${esc(p.nombre)}">${esc(p.nombre)} (${num(p.factor)} ${esc(insumo.unidad_medida)})</option>`).join('')
+      : '';
+    sel.classList.toggle('hidden', !tienePres);
+    // Por defecto, la presentación más grande (se suele comprar por rollo/paquete).
+    if (tienePres) sel.value = insumo.presentaciones[insumo.presentaciones.length - 1].nombre;
   }
+  if (badge) {
+    badge.textContent = insumo?.unidad_medida || 'unid.';
+    badge.classList.toggle('hidden', tienePres);
+  }
+  actualizarConversionIngreso();
+}
+
+function actualizarConversionIngreso() {
+  const insumo = insumoIngreso();
+  const nota   = document.getElementById('ingreso-conversion');
+  if (!nota) return;
+  const pres     = document.getElementById('ingreso-presentacion')?.value || '';
+  const cantidad = parseFloat(document.getElementById('ingreso-cantidad')?.value);
+  if (!insumo || !pres || !(cantidad > 0)) { nota.classList.add('hidden'); return; }
+  nota.textContent = `= ${num(cantidad * factorDe(insumo, pres))} ${insumo.unidad_medida}`;
+  nota.classList.remove('hidden');
 }
 
 async function poblarSelectIngreso() {
-  if (tiposCache.length === 0) {
-    const res  = await fetch(`${API}/insumos/tipos`);
-    tiposCache = await res.json();
-  }
+  try { await asegurarTipos(); } catch { return; }
 
-  const selTipo = document.getElementById('ingreso-tipo');
-  selTipo.innerHTML = '<option value="">— Seleccionar tipo —</option>' +
-    tiposCache.map(t => `<option value="${t.id}">${esc(t.nombre)}</option>`).join('');
+  document.getElementById('ingreso-tipo').innerHTML = opcionesCategorias(null, '— Seleccionar categoría —');
 
   const selInsumo = document.getElementById('select-ingreso-insumo');
-  selInsumo.innerHTML = '<option value="">— Primero seleccioná un tipo —</option>';
+  selInsumo.innerHTML = '<option value="">— Primero seleccioná una categoría —</option>';
   selInsumo.disabled = true;
   ingresoCache = [];
   actualizarUiBadgeIngreso();
 }
 
-// Listener del select de tipo en ingreso
 document.getElementById('ingreso-tipo')?.addEventListener('change', async () => {
   const tipoId    = parseInt(document.getElementById('ingreso-tipo').value);
   const selInsumo = document.getElementById('select-ingreso-insumo');
 
   if (!tipoId) {
-    selInsumo.innerHTML = '<option value="">— Primero seleccioná un tipo —</option>';
+    selInsumo.innerHTML = '<option value="">— Primero seleccioná una categoría —</option>';
     selInsumo.disabled  = true;
     ingresoCache = [];
     actualizarUiBadgeIngreso();
@@ -392,14 +517,11 @@ document.getElementById('ingreso-tipo')?.addEventListener('change', async () => 
   try {
     const res    = await fetch(`${API}/insumos?id_tipo=${tipoId}`);
     ingresoCache = await res.json();
-    selInsumo.innerHTML = '<option value="">— Seleccionar insumo —</option>' +
-      ingresoCache.map(i => {
-        const stockStr = esTela(i)
-          ? `${num(i.stock_actual / METROS_POR_ROLLO)} rollos`
-          : `${num(i.stock_actual)} ${esc(i.unidad_medida)}`;
-        return `<option value="${i.id}">${esc(i.nombre)} (${stockStr})</option>`;
-      }).join('');
-    selInsumo.disabled = false;
+    selInsumo.innerHTML = ingresoCache.length
+      ? '<option value="">— Seleccionar insumo —</option>' +
+        ingresoCache.map(i => `<option value="${i.id}">${esc(i.nombre)}${formatAtributos(i.atributos) ? ` · ${esc(formatAtributos(i.atributos))}` : ''} (${esc(cantidadTexto(i, i.stock_actual))})</option>`).join('')
+      : '<option value="">No hay insumos en esta categoría</option>';
+    selInsumo.disabled = !ingresoCache.length;
   } catch {
     selInsumo.innerHTML = '<option value="">Error al cargar</option>';
     ingresoCache = [];
@@ -407,47 +529,47 @@ document.getElementById('ingreso-tipo')?.addEventListener('change', async () => 
   actualizarUiBadgeIngreso();
 });
 
-// Listener del select de insumo en ingreso (definido una sola vez)
 document.getElementById('select-ingreso-insumo')?.addEventListener('change', actualizarUiBadgeIngreso);
+document.getElementById('ingreso-presentacion')?.addEventListener('change', actualizarConversionIngreso);
+document.getElementById('ingreso-cantidad')?.addEventListener('input', actualizarConversionIngreso);
 
 document.getElementById('form-ingreso')?.addEventListener('submit', async e => {
   e.preventDefault();
-  const id_insumo   = document.getElementById('select-ingreso-insumo').value;
-  const cantidadRaw = parseFloat(document.getElementById('ingreso-cantidad').value);
-  const obs         = document.getElementById('ingreso-obs').value;
-  const div         = document.getElementById('resultado-ingreso');
+  const id_insumo    = document.getElementById('select-ingreso-insumo').value;
+  const cantidad     = parseFloat(document.getElementById('ingreso-cantidad').value);
+  const presentacion = document.getElementById('ingreso-presentacion')?.value || null;
+  const obs          = document.getElementById('ingreso-obs').value;
+  const div          = document.getElementById('resultado-ingreso');
 
-  if (!id_insumo || !cantidadRaw) {
+  if (!id_insumo || !(cantidad > 0)) {
     mostrarResultado(div, 'error', 'Completá todos los campos requeridos.');
     return;
   }
-
-  const insumo  = ingresoCache.find(i => i.id === parseInt(id_insumo));
-  const tela    = esTela(insumo);
-  const cantidad = tela ? cantidadRaw * METROS_POR_ROLLO : cantidadRaw;
 
   try {
     const res  = await fetch(`${API}/movimientos/ingreso`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ id_insumo, cantidad, observacion: obs, usuario: 'Admin' })
+      body:    JSON.stringify({ id_insumo, cantidad, presentacion, observacion: obs, usuario: 'Admin' })
     });
     const data = await res.json();
 
     if (res.ok) {
-      const extra = tela
-        ? ` (${cantidadRaw} ${cantidadRaw === 1 ? 'rollo' : 'rollos'} = ${num(cantidad)} m)`
-        : '';
+      const insumo = { unidad_medida: data.unidad, presentaciones: data.presentaciones };
+      const cargado = data.presentacion
+        ? `${num(data.cantidad_presentacion)} ${plural(data.presentacion, data.cantidad_presentacion)} = ${num(data.cantidad)} ${data.unidad}`
+        : `${num(data.cantidad)} ${data.unidad}`;
       mostrarResultado(div, 'ok',
-        `✓ Ingreso registrado. Nuevo stock de ${data.insumo}: ${num(data.nuevo_stock)} ${data.unidad}${extra}`
+        `✓ Ingreso de ${cargado}. Nuevo stock de ${data.insumo}: ${cantidadTexto(insumo, data.nuevo_stock)}`
       );
       e.target.reset();
       ingresoCache = [];
-      document.getElementById('select-ingreso-insumo').innerHTML = '<option value="">— Primero seleccioná un tipo —</option>';
+      document.getElementById('select-ingreso-insumo').innerHTML = '<option value="">— Primero seleccioná una categoría —</option>';
       document.getElementById('select-ingreso-insumo').disabled = true;
       actualizarUiBadgeIngreso();
+      insumosCache = [];
     } else {
-      mostrarResultado(div, 'error', data.error || 'Error al registrar ingreso.');
+      mostrarResultado(div, 'error', mensajeError(data, 'Error al registrar ingreso.'));
     }
   } catch {
     mostrarResultado(div, 'error', 'Error de conexión con el servidor.');
@@ -463,41 +585,45 @@ document.getElementById('tbody-insumos')?.addEventListener('click', e => {
   abrirModalEditar(parseInt(btn.dataset.id));
 });
 
+/* Etiquetas y ayudas de los campos de stock según la unidad base elegida. */
+function actualizarFormStock(prefijo) {
+  const unidad = document.getElementById(`${prefijo}-unidad`).value.trim();
+  const pres   = leerPresentaciones(`${prefijo}-presentaciones`).filter(p => p.nombre && p.factor > 0);
+  const sufijo = unidad ? ` (en ${unidad})` : '';
+  document.getElementById(`${prefijo}-label-stock`).textContent  = (prefijo === 'cat' ? 'Stock inicial' : 'Stock actual') + sufijo;
+  document.getElementById(`${prefijo}-label-minimo`).textContent = 'Stock mínimo (alerta)' + sufijo;
+  hintConversion(`${prefijo}-stock-hint`,  document.getElementById(`${prefijo}-stock`).value,  unidad, pres);
+  hintConversion(`${prefijo}-minimo-hint`, document.getElementById(`${prefijo}-minimo`).value, unidad, pres);
+}
+
+function enlazarFormStock(prefijo) {
+  const refrescar = () => {
+    actualizarUnidadEditor(`${prefijo}-presentaciones`, document.getElementById(`${prefijo}-unidad`).value.trim());
+    actualizarFormStock(prefijo);
+  };
+  document.getElementById(`${prefijo}-unidad`)?.addEventListener('change', refrescar);
+  ['stock', 'minimo'].forEach(c => document.getElementById(`${prefijo}-${c}`)?.addEventListener('input', () => actualizarFormStock(prefijo)));
+  document.getElementById(`${prefijo}-presentaciones`)?.addEventListener('input', () => actualizarFormStock(prefijo));
+  document.getElementById(`${prefijo}-presentaciones`)?.addEventListener('click', () => setTimeout(() => actualizarFormStock(prefijo), 0));
+}
+enlazarFormStock('edit');
+enlazarFormStock('cat');
+
 async function abrirModalEditar(id) {
   const insumo = insumosCache.find(i => i.id === id);
   if (!insumo) return;
+  try { await Promise.all([asegurarTipos(), asegurarUnidades()]); } catch { return; }
 
-  // Cargar tipos si no están en cache
-  if (tiposCache.length === 0) {
-    const res  = await fetch(`${API}/insumos/tipos`);
-    tiposCache = await res.json();
-  }
+  document.getElementById('edit-tipo').innerHTML = opcionesCategorias(insumo.id_tipo);
+  document.getElementById('edit-id').value     = insumo.id;
+  document.getElementById('edit-nombre').value = insumo.nombre;
+  document.getElementById('edit-unidad').value = insumo.unidad_medida;
+  document.getElementById('edit-stock').value  = insumo.stock_actual;
+  document.getElementById('edit-minimo').value = insumo.stock_minimo;
+  renderEditorPresentaciones('edit-presentaciones', insumo.presentaciones, insumo.unidad_medida);
+  actualizarFormStock('edit');
 
-  const sel = document.getElementById('edit-tipo');
-  sel.innerHTML = '<option value="">— Seleccionar —</option>' +
-    tiposCache.map(t =>
-      `<option value="${t.id}" ${t.id === insumo.id_tipo ? 'selected' : ''}>${esc(t.nombre)}</option>`
-    ).join('');
-
-  document.getElementById('edit-id').value      = insumo.id;
-  document.getElementById('edit-nombre').value  = insumo.nombre;
-  document.getElementById('edit-unidad').value  = insumo.unidad_medida;
-
-  // Si es tela, mostrar en rollos (el DB guarda metros)
-  const esTelInsumo = esTela(insumo);
-  document.getElementById('edit-stock').value  = esTelInsumo
-    ? insumo.stock_actual / METROS_POR_ROLLO
-    : insumo.stock_actual;
-  document.getElementById('edit-minimo').value = esTelInsumo
-    ? insumo.stock_minimo / METROS_POR_ROLLO
-    : insumo.stock_minimo;
-
-  const unidadHint = esTelInsumo ? 'rollos' : (insumo.unidad_medida || '');
-  document.querySelector('label[for="edit-stock"]').textContent  = `Stock actual${unidadHint ? ` (${unidadHint})` : ''}`;
-  document.querySelector('label[for="edit-minimo"]').textContent = `Stock mínimo${unidadHint ? ` (${unidadHint})` : ''}`;
-
-  document.getElementById('edit-imagen').value  = '';
-
+  document.getElementById('edit-imagen').value = '';
   const preview = document.getElementById('edit-imagen-preview');
   if (insumo.imagen_url && preview) {
     preview.src = insumo.imagen_url;
@@ -506,7 +632,7 @@ async function abrirModalEditar(id) {
     preview.classList.add('hidden');
   }
 
-  renderCamposAtributos(insumo.tipo_nombre || '', 'edit-atributos-container', insumo.atributos || {});
+  renderCamposAtributos(insumo.id_tipo, 'edit-atributos-container', insumo.atributos || {});
 
   document.getElementById('resultado-editar')?.classList.add('hidden');
   document.getElementById('modal-editar').classList.remove('hidden');
@@ -518,9 +644,8 @@ function cerrarModal() {
 }
 
 document.getElementById('edit-tipo')?.addEventListener('change', () => {
-  const id   = parseInt(document.getElementById('edit-tipo').value);
-  const tipo = tiposCache.find(t => t.id === id);
-  renderCamposAtributos(tipo?.nombre || '', 'edit-atributos-container');
+  const actuales = recolectarAtributos('edit-atributos-container');
+  renderCamposAtributos(document.getElementById('edit-tipo').value, 'edit-atributos-container', actuales);
 });
 
 document.getElementById('modal-cerrar')?.addEventListener('click', cerrarModal);
@@ -544,18 +669,14 @@ document.getElementById('form-editar-insumo')?.addEventListener('submit', async 
   const id  = document.getElementById('edit-id').value;
   const div = document.getElementById('resultado-editar');
 
-  const originalInsumo = insumosCache.find(i => i.id === parseInt(id));
-  const esTelEdit      = esTela(originalInsumo);
-  const stockVal       = parseFloat(document.getElementById('edit-stock').value);
-  const minimoVal      = parseFloat(document.getElementById('edit-minimo').value);
-
   const body = {
-    nombre:        document.getElementById('edit-nombre').value.trim(),
-    id_tipo:       parseInt(document.getElementById('edit-tipo').value),
-    unidad_medida: document.getElementById('edit-unidad').value,
-    stock_actual:  esTelEdit ? stockVal  * METROS_POR_ROLLO : stockVal,
-    stock_minimo:  esTelEdit ? minimoVal * METROS_POR_ROLLO : minimoVal,
-    atributos:     recolectarAtributos('edit-atributos-container'),
+    nombre:         document.getElementById('edit-nombre').value.trim(),
+    id_tipo:        parseInt(document.getElementById('edit-tipo').value),
+    unidad_medida:  document.getElementById('edit-unidad').value.trim(),
+    stock_actual:   parseFloat(document.getElementById('edit-stock').value),
+    stock_minimo:   parseFloat(document.getElementById('edit-minimo').value),
+    atributos:      recolectarAtributos('edit-atributos-container'),
+    presentaciones: leerPresentaciones('edit-presentaciones'),
   };
 
   if (!body.nombre || !body.id_tipo || !body.unidad_medida) {
@@ -583,7 +704,7 @@ document.getElementById('form-editar-insumo')?.addEventListener('submit', async 
       await cargarDashboard(currentDashboardTipo);
       setTimeout(cerrarModal, 1200);
     } else {
-      mostrarResultado(div, 'error', data.error || 'Error al actualizar.');
+      mostrarResultado(div, 'error', mensajeError(data, 'Error al actualizar.'));
     }
   } catch {
     mostrarResultado(div, 'error', 'Error de conexión.');
@@ -593,27 +714,27 @@ document.getElementById('form-editar-insumo')?.addEventListener('submit', async 
 /* ── CATÁLOGO: NUEVO INSUMO ── */
 async function cargarTipos() {
   try {
-    const res  = await fetch(`${API}/insumos/tipos`);
-    tiposCache = await res.json();
-    const sel  = document.getElementById('cat-tipo');
-    sel.innerHTML = '<option value="">— Seleccionar —</option>' +
-      tiposCache.map(t => `<option value="${t.id}">${esc(t.nombre)}</option>`).join('');
+    await Promise.all([asegurarTipos(true), asegurarUnidades(true)]);
+    const sel   = document.getElementById('cat-tipo');
+    const valor = sel.value;
+    sel.innerHTML = opcionesCategorias(valor);
+    if (!document.querySelector('#cat-presentaciones .editor-lista')) {
+      renderEditorPresentaciones('cat-presentaciones', [], document.getElementById('cat-unidad').value.trim());
+    }
+    actualizarFormStock('cat');
   } catch (err) {
-    console.error('Error cargando tipos:', err);
+    console.error('Error cargando categorías:', err);
   }
 }
 
-function esTipoTela(tipoId) {
-  const tipo = tiposCache.find(t => t.id === tipoId);
-  return !!tipo?.nombre?.toLowerCase().includes('tela');
-}
-
+/* Al elegir la categoría se sugieren su unidad base y sus presentaciones. */
 document.getElementById('cat-tipo')?.addEventListener('change', () => {
-  const id     = parseInt(document.getElementById('cat-tipo').value);
-  const tipo   = tiposCache.find(t => t.id === id);
-  const nota   = document.getElementById('cat-stock-tela-nota');
-  if (nota) nota.classList.toggle('hidden', !esTipoTela(id));
-  renderCamposAtributos(tipo?.nombre || '', 'cat-atributos-container');
+  const cat = categoriaDe(document.getElementById('cat-tipo').value);
+  renderCamposAtributos(cat?.id, 'cat-atributos-container');
+  const unidadInput = document.getElementById('cat-unidad');
+  if (cat?.unidad_base) unidadInput.value = cat.unidad_base;
+  renderEditorPresentaciones('cat-presentaciones', cat?.presentaciones || [], unidadInput.value.trim());
+  actualizarFormStock('cat');
 });
 
 // Preview al seleccionar imagen en catálogo
@@ -633,18 +754,14 @@ document.getElementById('form-nuevo-insumo')?.addEventListener('submit', async e
   e.preventDefault();
   const div = document.getElementById('resultado-catalogo');
 
-  const catTipoId  = parseInt(document.getElementById('cat-tipo').value);
-  const esTelaCat  = esTipoTela(catTipoId);
-  const stockRaw   = parseFloat(document.getElementById('cat-stock').value) || 0;
-  const minimoRaw  = parseFloat(document.getElementById('cat-minimo').value) || 0;
-
   const body = {
-    nombre:        document.getElementById('cat-nombre').value.trim(),
-    id_tipo:       catTipoId,
-    unidad_medida: document.getElementById('cat-unidad').value,
-    stock_actual:  esTelaCat ? stockRaw  * METROS_POR_ROLLO : stockRaw,
-    stock_minimo:  esTelaCat ? minimoRaw * METROS_POR_ROLLO : minimoRaw,
-    atributos:     recolectarAtributos('cat-atributos-container'),
+    nombre:         document.getElementById('cat-nombre').value.trim(),
+    id_tipo:        parseInt(document.getElementById('cat-tipo').value),
+    unidad_medida:  document.getElementById('cat-unidad').value.trim(),
+    stock_actual:   parseFloat(document.getElementById('cat-stock').value) || 0,
+    stock_minimo:   parseFloat(document.getElementById('cat-minimo').value) || 0,
+    atributos:      recolectarAtributos('cat-atributos-container'),
+    presentaciones: leerPresentaciones('cat-presentaciones'),
   };
 
   if (!body.nombre || !body.id_tipo || !body.unidad_medida) {
@@ -661,7 +778,6 @@ document.getElementById('form-nuevo-insumo')?.addEventListener('submit', async e
     const data = await res.json();
 
     if (res.ok) {
-      // Subir imagen si se seleccionó una
       const fileInput = document.getElementById('cat-imagen');
       if (fileInput?.files[0]) {
         const fd = new FormData();
@@ -675,12 +791,258 @@ document.getElementById('form-nuevo-insumo')?.addEventListener('submit', async e
       e.target.reset();
       document.getElementById('cat-imagen-preview')?.classList.add('hidden');
       document.getElementById('cat-atributos-container').innerHTML = '';
+      renderEditorPresentaciones('cat-presentaciones', [], '');
+      actualizarFormStock('cat');
       insumosCache = [];
     } else {
-      mostrarResultado(div, 'error', data.error || 'Error al crear insumo.');
+      mostrarResultado(div, 'error', mensajeError(data, 'Error al crear insumo.'));
     }
   } catch {
     mostrarResultado(div, 'error', 'Error de conexión con el servidor.');
+  }
+});
+
+/* ── CATEGORÍAS: alta, edición y baja ── */
+const TIPOS_CAMPO_LABEL = { texto: 'Texto libre', opciones: 'Lista de opciones', numero: 'Número' };
+
+async function cargarPaginaCategorias() {
+  const tbody = document.getElementById('tbody-categorias');
+  tbody.innerHTML = '<tr><td colspan="6" class="loading-row">Cargando...</td></tr>';
+  try {
+    await Promise.all([asegurarTipos(true), asegurarUnidades(true)]);
+  } catch {
+    tbody.innerHTML = '<tr><td colspan="6" class="loading-row">No se pudo conectar al servidor.</td></tr>';
+    return;
+  }
+  renderTablaCategorias();
+  renderUnidades();
+  if (!document.querySelector('#catg-presentaciones .editor-lista')) limpiarFormCategoria();
+}
+
+function renderTablaCategorias() {
+  const tbody = document.getElementById('tbody-categorias');
+  if (!tiposCache.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="loading-row">Todavía no hay categorías.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = tiposCache.map(t => `
+    <tr>
+      <td><strong>${esc(t.nombre)}</strong></td>
+      <td>${esc(t.unidad_base || '—')}</td>
+      <td>${t.presentaciones.length ? t.presentaciones.map(p => `1 ${esc(p.nombre)} = ${num(p.factor)}`).join('<br>') : '—'}</td>
+      <td>${t.campos.length
+        ? t.campos.map(c => `${esc(c.etiqueta)}${c.obligatorio ? ' *' : ''} <small class="attr-sub">${TIPOS_CAMPO_LABEL[c.tipo] || c.tipo}</small>`).join('<br>')
+        : '—'}</td>
+      <td class="stock-value">${t.cantidad_insumos ?? 0}</td>
+      <td class="td-acciones">
+        <button class="btn-editar btn-editar-categoria" data-id="${t.id}" title="Editar categoría">✎</button>
+        <button class="btn-editar btn-borrar-categoria" data-id="${t.id}" title="Eliminar categoría">🗑</button>
+      </td>
+    </tr>`).join('');
+}
+
+function agregarFilaCampo(c = {}) {
+  const fila = document.createElement('div');
+  fila.className = 'editor-fila editor-fila-campo';
+  if (c.clave) fila.dataset.clave = c.clave; // se conserva al renombrar, para no perder los datos cargados
+  fila.innerHTML = `
+    <input type="text" class="form-control campo-etiqueta" placeholder="Ej: Talle, Color, Ancho" maxlength="40" value="${esc(c.etiqueta || '')}" />
+    <select class="form-control form-select campo-tipo">
+      ${Object.entries(TIPOS_CAMPO_LABEL).map(([v, l]) => `<option value="${v}"${(c.tipo || 'texto') === v ? ' selected' : ''}>${l}</option>`).join('')}
+    </select>
+    <input type="text" class="form-control campo-opciones" placeholder="Opciones separadas por coma: S, M, L" value="${esc((c.opciones || []).join(', '))}" />
+    <label class="campo-oblig"><input type="checkbox" class="campo-obligatorio"${c.obligatorio ? ' checked' : ''} /> Obligatorio</label>
+    <button type="button" class="editor-quitar" title="Quitar">✕</button>`;
+  const tipo = fila.querySelector('.campo-tipo');
+  const opciones = fila.querySelector('.campo-opciones');
+  const sync = () => opciones.classList.toggle('invisible', tipo.value !== 'opciones');
+  tipo.addEventListener('change', sync);
+  sync();
+  fila.querySelector('.editor-quitar').addEventListener('click', () => fila.remove());
+  document.querySelector('#catg-campos .editor-lista').appendChild(fila);
+  return fila;
+}
+
+function leerCampos() {
+  return [...document.querySelectorAll('#catg-campos .editor-fila-campo')]
+    .map(f => ({
+      clave:       f.dataset.clave || undefined,
+      etiqueta:    f.querySelector('.campo-etiqueta').value.trim(),
+      tipo:        f.querySelector('.campo-tipo').value,
+      opciones:    f.querySelector('.campo-opciones').value,
+      obligatorio: f.querySelector('.campo-obligatorio').checked,
+    }))
+    .filter(c => c.etiqueta || (c.tipo === 'opciones' && c.opciones.trim()));
+}
+
+function cargarFormCategoria(cat = null) {
+  document.getElementById('catg-id').value     = cat?.id || '';
+  document.getElementById('catg-nombre').value = cat?.nombre || '';
+  document.getElementById('catg-unidad').value = cat?.unidad_base || '';
+  document.getElementById('catg-form-titulo').textContent = cat ? `Editar categoría: ${cat.nombre}` : 'Nueva categoría';
+  document.getElementById('btn-catg-cancelar').classList.toggle('hidden', !cat);
+  renderEditorPresentaciones('catg-presentaciones', cat?.presentaciones || [], cat?.unidad_base || '');
+  document.querySelector('#catg-campos .editor-lista').innerHTML = '';
+  (cat?.campos || []).forEach(agregarFilaCampo);
+  document.getElementById('resultado-categoria')?.classList.add('hidden');
+}
+
+function limpiarFormCategoria() {
+  cargarFormCategoria(null);
+}
+
+document.getElementById('catg-agregar-campo')?.addEventListener('click', () => {
+  agregarFilaCampo({}).querySelector('.campo-etiqueta').focus();
+});
+document.getElementById('catg-unidad')?.addEventListener('change', e => {
+  actualizarUnidadEditor('catg-presentaciones', e.target.value.trim());
+});
+document.getElementById('btn-catg-cancelar')?.addEventListener('click', limpiarFormCategoria);
+
+document.getElementById('tbody-categorias')?.addEventListener('click', async e => {
+  const editar = e.target.closest('.btn-editar-categoria');
+  const borrar = e.target.closest('.btn-borrar-categoria');
+  if (editar) {
+    cargarFormCategoria(categoriaDe(editar.dataset.id));
+    document.getElementById('card-categoria').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById('catg-nombre').focus();
+  }
+  if (borrar) {
+    const cat = categoriaDe(borrar.dataset.id);
+    if (!cat || !confirm(`¿Eliminar la categoría "${cat.nombre}"?`)) return;
+    const res  = await fetch(`${API}/categorias/${cat.id}`, { method: 'DELETE' });
+    const data = await res.json();
+    const div  = document.getElementById('resultado-categoria');
+    if (res.ok) {
+      mostrarResultado(div, 'ok', `✓ ${data.mensaje}`);
+      await asegurarTipos(true);
+      renderTablaCategorias();
+    } else {
+      mostrarResultado(div, 'error', mensajeError(data, 'No se pudo eliminar la categoría.'));
+    }
+  }
+});
+
+document.getElementById('form-categoria')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const div = document.getElementById('resultado-categoria');
+  const id  = document.getElementById('catg-id').value;
+  const body = {
+    nombre:         document.getElementById('catg-nombre').value.trim(),
+    unidad_base:    document.getElementById('catg-unidad').value.trim(),
+    presentaciones: leerPresentaciones('catg-presentaciones'),
+    campos:         leerCampos(),
+  };
+  if (!body.nombre) {
+    mostrarResultado(div, 'error', 'El nombre de la categoría es obligatorio.');
+    return;
+  }
+
+  try {
+    const res  = await fetch(id ? `${API}/categorias/${id}` : `${API}/categorias`, {
+      method:  id ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      mostrarResultado(div, 'ok', `✓ Categoría "${data.nombre}" ${id ? 'actualizada' : 'creada'}.`);
+      await asegurarTipos(true);
+      renderTablaCategorias();
+      limpiarFormCategoria();
+      document.getElementById('resultado-categoria').classList.remove('hidden');
+    } else {
+      mostrarResultado(div, 'error', mensajeError(data, 'No se pudo guardar la categoría.'));
+    }
+  } catch {
+    mostrarResultado(div, 'error', 'Error de conexión con el servidor.');
+  }
+});
+
+/* ── UNIDADES DE MEDIDA: alta, renombre/unificación y baja ── */
+function renderUnidades() {
+  const cont = document.getElementById('lista-unidades');
+  if (!cont) return;
+  cont.innerHTML = unidadesCache.map(u => `
+    <div class="unidad-item">
+      <span class="unidad-nombre">${esc(u.nombre)}</span>
+      <span class="attr-sub">${u.insumos} insumo${u.insumos === 1 ? '' : 's'}</span>
+      <button type="button" class="btn-editar btn-renombrar-unidad" data-id="${u.id}" title="Renombrar o unificar">✎</button>
+      <button type="button" class="btn-editar btn-borrar-unidad" data-id="${u.id}" title="Eliminar"${u.insumos ? ' disabled' : ''}>🗑</button>
+    </div>`).join('');
+}
+
+/* Llama a la API; si la unidad se parece a otra o ya existe, pregunta y reintenta. */
+async function guardarUnidad(url, metodo, nombre) {
+  const div = document.getElementById('resultado-unidad');
+  let body = { nombre };
+  for (let intento = 0; intento < 3; intento++) {
+    const res  = await fetch(url, { method: metodo, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (res.ok) return data;
+
+    if (data.codigo === 'UNIDAD_PARECIDA' &&
+        confirm(`${data.error}\n\nAceptar: crearla igual (es otra unidad).\nCancelar: no crearla.`)) {
+      body = { ...body, forzar: true };
+      continue;
+    }
+    if (data.codigo === 'UNIDAD_EXISTENTE' && metodo === 'PATCH' && data.destino &&
+        confirm(`${data.error}\n\n¿Unificarlas?`)) {
+      body = { ...body, fusionar: true };
+      continue;
+    }
+    mostrarResultado(div, 'error', mensajeError(data, 'No se pudo guardar la unidad.'));
+    return null;
+  }
+  return null;
+}
+
+async function refrescarUnidadesYCategorias() {
+  await Promise.all([asegurarUnidades(true), asegurarTipos(true)]);
+  renderUnidades();
+  renderTablaCategorias();
+}
+
+document.getElementById('form-unidad')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const input = document.getElementById('unidad-nueva');
+  const nombre = input.value.trim();
+  if (!nombre) return;
+  const data = await guardarUnidad(`${API}/unidades`, 'POST', nombre);
+  if (data) {
+    input.value = '';
+    mostrarResultado(document.getElementById('resultado-unidad'), 'ok', `✓ Unidad "${data.nombre}" agregada.`);
+    await refrescarUnidadesYCategorias();
+  }
+});
+
+document.getElementById('lista-unidades')?.addEventListener('click', async e => {
+  const div = document.getElementById('resultado-unidad');
+  const renombrar = e.target.closest('.btn-renombrar-unidad');
+  const borrar    = e.target.closest('.btn-borrar-unidad');
+  const unidad = unidadesCache.find(u => u.id === Number((renombrar || borrar)?.dataset.id));
+  if (!unidad) return;
+
+  if (renombrar) {
+    const nombre = prompt(`Nuevo nombre para "${unidad.nombre}"\n(si escribís el de otra unidad existente, se unifican):`, unidad.nombre);
+    if (!nombre || nombre.trim().toLowerCase() === unidad.nombre) return;
+    const data = await guardarUnidad(`${API}/unidades/${unidad.id}`, 'PATCH', nombre);
+    if (data) {
+      mostrarResultado(div, 'ok', `✓ Listo: ahora es "${data.nombre}".`);
+      insumosCache = [];
+      await refrescarUnidadesYCategorias();
+    }
+  }
+  if (borrar) {
+    if (!confirm(`¿Eliminar la unidad "${unidad.nombre}"?`)) return;
+    const res  = await fetch(`${API}/unidades/${unidad.id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (res.ok) {
+      mostrarResultado(div, 'ok', `✓ ${data.mensaje}`);
+      await refrescarUnidadesYCategorias();
+    } else {
+      mostrarResultado(div, 'error', mensajeError(data, 'No se pudo eliminar la unidad.'));
+    }
   }
 });
 

@@ -10,12 +10,17 @@ class MovimientoRepository {
     return client ? client.query.bind(client) : this.db.query;
   }
 
-  async registrar({ id_insumo, tipo, cantidad, stockResultante, observacion, usuario }, client) {
+  async registrar({
+    id_insumo, tipo, cantidad, stockResultante, observacion, usuario,
+    presentacion = null, cantidadPresentacion = null,
+  }, client) {
     const { rows } = await this._q(client)(
       `INSERT INTO movimientos_stock
-         (id_insumo, tipo_movimiento, cantidad, stock_resultante, observacion, usuario)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [id_insumo, tipo, cantidad, stockResultante, observacion || null, usuario],
+         (id_insumo, tipo_movimiento, cantidad, stock_resultante, observacion, usuario,
+          presentacion, cantidad_presentacion)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [id_insumo, tipo, cantidad, stockResultante, observacion || null, usuario,
+        presentacion, cantidadPresentacion],
     );
     return Movimiento.desdeFila(rows[0]);
   }

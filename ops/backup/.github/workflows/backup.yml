@@ -1,0 +1,58 @@
+# Backup diario de SIGI-BKR (base de datos + imágenes).
+# Va en un repositorio PRIVADO aparte (sigi-bkr-backups), nunca en el público:
+# el volcado tiene todos los datos del taller.
+#
+# Secrets del repo (Settings → Secrets and variables → Actions):
+#   DATABASE_URL         cadena del Session pooler de Supabase (la misma de Render)
+#   SUPABASE_URL         https://<proyecto>.supabase.co
+#   SUPABASE_SECRET_KEY  secret key de Supabase
+name: Backup diario
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # todos los días 06:00 UTC = 03:00 en Argentina
+  workflow_dispatch:      # botón "Run workflow" para hacer uno en el momento
+
+permissions:
+  contents: write
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar cliente de PostgreSQL 17
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -qq postgresql-client-17 jq
+
+      - name: Volcar la base
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: bash scripts/volcar-base.sh
+
+      - name: Copiar imágenes de Supabase Storage
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: bash scripts/bajar-imagenes.sh
+
+      - name: Guardar en el repositorio
+        run: |
+          git config user.name  "backup-bot"
+          git config user.email "backup-bot@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Sin cambios desde el último backup."
+          else
+            git commit -m "Backup $(date -u +'%Y-%m-%d %H:%M UTC')"
+            git push
+          fi

@@ -1,4 +1,5 @@
 const Insumo = require('../Insumo');
+const Presentacion = require('../Presentacion');
 const { ErrorValidacion } = require('../errores');
 
 /**
@@ -27,6 +28,7 @@ class InsumoBuilder {
     if (body.stock_minimo !== undefined) b.conStockMinimo(body.stock_minimo);
     if (body.atributos !== undefined) b.conAtributos(body.atributos);
     if (body.imagen_url !== undefined) b.conImagen(body.imagen_url);
+    if (body.presentaciones !== undefined) b.conPresentaciones(body.presentaciones, body.unidad_medida);
     return b;
   }
 
@@ -40,14 +42,14 @@ class InsumoBuilder {
 
   conTipo(valor) {
     const id = Number(valor);
-    if (!Number.isInteger(id) || id <= 0) this.errores.push('id_tipo debe ser un entero positivo.');
+    if (!Number.isInteger(id) || id <= 0) this.errores.push('Elegí una categoría.');
     else this.datos.id_tipo = id;
     return this;
   }
 
   conUnidad(valor) {
     const unidad = String(valor ?? '').trim().toLowerCase();
-    if (!unidad) this.errores.push('La unidad de medida es obligatoria.');
+    if (!unidad) this.errores.push('La unidad base es obligatoria.');
     else if (unidad.length > 20) this.errores.push('La unidad de medida no puede superar los 20 caracteres.');
     else this.datos.unidad_medida = unidad;
     return this;
@@ -82,6 +84,13 @@ class InsumoBuilder {
     return this;
   }
 
+  conPresentaciones(lista, unidadBase) {
+    const { presentaciones, errores } = Presentacion.normalizarLista(lista, unidadBase);
+    this.errores.push(...errores);
+    this.datos.presentaciones = presentaciones;
+    return this;
+  }
+
   conImagen(url) {
     this.datos.imagen_url = url ? String(url) : null;
     return this;
@@ -89,9 +98,10 @@ class InsumoBuilder {
 
   /** Valida y arma un Insumo completo (alta). */
   build() {
+    const nombres = { nombre: 'El nombre', id_tipo: 'La categoría', unidad_medida: 'La unidad base' };
     for (const campo of ['nombre', 'id_tipo', 'unidad_medida']) {
       if (this.datos[campo] === undefined && !this.errores.length) {
-        this.errores.push(`El campo ${campo} es obligatorio.`);
+        this.errores.push(`${nombres[campo]} es obligatorio/a.`);
       }
     }
     this._verificar();
@@ -104,6 +114,7 @@ class InsumoBuilder {
       stock_actual: stockActual,
       stock_minimo: stockMinimo,
       atributos: this.datos.atributos ?? {},
+      presentaciones: this.datos.presentaciones ?? [],
       estado_critico: stockActual <= stockMinimo,
     });
   }

@@ -28,8 +28,14 @@ negocio sólo en `src/domain`, y `src/api` no sabe que existe PostgreSQL.**
 | **Facade** | Estructural | `src/services/InventarioFacade.js` | Da un punto de entrada único al subsistema de inventario: los controllers no manejan transacciones, repositorios ni notificadores. |
 | **Strategy** | Comportamiento | `src/domain/strategies/` | Ingreso, egreso y ajuste calculan el stock y validan distinto. Cada uno es una clase; sumar un tipo nuevo no toca el flujo transaccional. |
 | **Strategy** (almacenamiento) | Comportamiento | `src/services/almacenamiento/` | Dónde guardar las imágenes depende del entorno: disco local en desarrollo, Supabase Storage en producción (el disco de Render es efímero). |
+| **Builder** (categorías) | Creacional | `src/domain/builders/CategoriaBuilder.js` | La definición de una categoría (campos, unidad base, presentaciones sugeridas) se valida paso a paso acumulando errores, igual que el insumo. |
 | *Singleton* | Creacional | `src/data/db.js` | Un único pool de conexiones en toda la aplicación. |
 | *Observer* | Comportamiento | `src/services/AlertaService.js` | La alerta RD02 avisa a N notificadores suscriptos (log, e-mail, y lo que se agregue) sin que el flujo de negocio los conozca. |
+
+## Categorías y presentaciones configurables
+
+- **Categorías** (`tipos_insumo`): cada una define las *características* que se piden a sus insumos (`campos`: texto, lista de opciones o número; obligatorias u opcionales), una unidad base sugerida y presentaciones sugeridas. Se administran desde la pestaña *Categorías* (`/api/categorias`). El backend valida los atributos de cada insumo contra los campos de su categoría.
+- **Presentaciones** (`presentaciones`): el stock se guarda siempre en la unidad base del insumo (`insumos.unidad_medida`); cada insumo puede tener presentaciones con su equivalencia (rollo = 20 m, paquete = 100 u). Los movimientos aceptan `{ cantidad, presentacion }` y la conversión la hace `Insumo.convertirABase`. El historial guarda la cantidad en unidad base y lo que se cargó (`presentacion`, `cantidad_presentacion`).
 
 ## Reglas de negocio
 
@@ -87,6 +93,8 @@ rollback ante error.
 | Método | Ruta | Descripción |
 |---|---|---|
 | GET | `/api/health` | Chequeo de vida |
+| GET/POST | `/api/categorias` | Lista / alta de categorías (`nombre`, `unidad_base`, `presentaciones`, `campos`) |
+| PATCH/DELETE | `/api/categorias/:id` | Modificación / baja (rechaza si tiene insumos activos) |
 | GET | `/api/insumos` | Lista activos. Filtros: `id_tipo`, `estado=critico\|normal`, `q` |
 | GET | `/api/insumos/:id` | Detalle |
 | GET | `/api/insumos/tipos` | Catálogo de tipos |

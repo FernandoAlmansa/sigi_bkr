@@ -21,8 +21,9 @@
       <a href="#" class="nav-link active" data-page="dashboard">Dashboard</a>
       <a href="#" class="nav-link" data-page="egreso">Registrar Egreso</a>
       <a href="#" class="nav-link" data-page="ingreso">Registrar Ingreso</a>
-      <a href="#" class="nav-link" data-page="historial">Historial</a>
       <a href="#" class="nav-link" data-page="catalogo">Catálogo</a>
+      <a href="#" class="nav-link" data-page="categorias">Categorías</a>
+      <a href="#" class="nav-link" data-page="historial">Historial</a>
     </div>
     <div id="alert-badge" class="alert-badge hidden">
       <span class="badge-dot"></span>
@@ -69,7 +70,7 @@
       <div class="table-container">
         <div class="dashboard-tipo-row">
           <select id="dashboard-tipo" class="form-control form-select dashboard-tipo-select">
-            <option value="">— Seleccioná un tipo de insumo para ver el inventario —</option>
+            <option value="">— Todas las categorías —</option>
           </select>
         </div>
         <div class="table-toolbar">
@@ -90,7 +91,7 @@
           <thead>
             <tr>
               <th>Insumo</th>
-              <th>Tipo</th>
+              <th>Categoría</th>
               <th>Stock actual</th>
               <th>Stock mínimo</th>
               <th>Unidad</th>
@@ -134,9 +135,9 @@
         <form id="form-egreso" autocomplete="off">
           <!-- PASO 1: Selector con autocompletado -->
           <div class="form-group">
-            <label class="form-label">Tipo de insumo <span class="optional">(opcional)</span></label>
+            <label class="form-label">Categoría <span class="optional">(opcional)</span></label>
             <select id="egreso-tipo" class="form-control form-select">
-              <option value="">— Todos los tipos —</option>
+              <option value="">— Todas las categorías —</option>
             </select>
           </div>
           <div class="form-group" id="group-insumo">
@@ -181,17 +182,10 @@
             </div>
           </div>
 
-          <!-- TELA: modo de egreso (solo visible si es tela) -->
-          <div id="tela-egreso-opciones" class="form-group hidden">
+          <!-- Presentación del egreso (sólo si el insumo tiene presentaciones) -->
+          <div id="presentacion-egreso-opciones" class="form-group hidden">
             <label class="form-label">¿En qué unidad vas a dar de baja?</label>
-            <div class="tela-toggle-row">
-              <button type="button" id="btn-modo-metros" class="tela-toggle-btn tela-toggle-active">
-                Metros
-              </button>
-              <button type="button" id="btn-modo-rollo" class="tela-toggle-btn">
-                Rollos
-              </button>
-            </div>
+            <div class="tela-toggle-row" id="presentacion-botones"></div>
           </div>
 
           <!-- PASO 2: Cantidad -->
@@ -240,26 +234,25 @@
       <div class="form-card">
         <form id="form-ingreso" autocomplete="off">
           <div class="form-group">
-            <label class="form-label">Tipo de insumo</label>
+            <label class="form-label">Categoría</label>
             <select id="ingreso-tipo" class="form-control form-select">
-              <option value="">— Seleccionar tipo —</option>
+              <option value="">— Seleccionar categoría —</option>
             </select>
           </div>
           <div class="form-group">
             <label class="form-label">Insumo</label>
             <select id="select-ingreso-insumo" class="form-control form-select" disabled>
-              <option value="">— Primero seleccioná un tipo —</option>
+              <option value="">— Primero seleccioná una categoría —</option>
             </select>
           </div>
           <div class="form-group">
             <label class="form-label" for="ingreso-cantidad">Cantidad ingresada</label>
             <div class="cantidad-row">
-              <input type="number" id="ingreso-cantidad" class="form-control cantidad-input" min="0.01" step="0.01" placeholder="0" />
+              <input type="number" id="ingreso-cantidad" class="form-control cantidad-input" min="0.001" step="any" placeholder="0" />
+              <select id="ingreso-presentacion" class="form-control form-select unidad-select hidden" aria-label="Unidad del ingreso"></select>
               <span class="unidad-badge" id="ingreso-badge-unidad">unid.</span>
             </div>
-            <div id="ingreso-tela-nota" class="tela-nota hidden">
-              ℹ Tela: 1 rollo = 20 metros — el stock se actualiza en metros
-            </div>
+            <div id="ingreso-conversion" class="tela-nota hidden"></div>
           </div>
           <div class="form-group">
             <label class="form-label" for="ingreso-obs">Observación <span class="optional">(opcional)</span></label>
@@ -281,7 +274,7 @@
       <div class="table-container">
         <div class="table-toolbar">
           <select id="filtro-tipo" class="form-control form-select" style="width:180px">
-            <option value="">Todos los tipos</option>
+            <option value="">Todos los movimientos</option>
             <option value="INGRESO">Ingresos</option>
             <option value="EGRESO">Egresos</option>
           </select>
@@ -292,7 +285,7 @@
             <tr>
               <th>Fecha</th>
               <th>Insumo</th>
-              <th>Tipo</th>
+              <th>Movimiento</th>
               <th>Cantidad</th>
               <th>Stock resultante</th>
               <th>Usuario</th>
@@ -320,34 +313,33 @@
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label" for="cat-tipo">Tipo</label>
+              <label class="form-label" for="cat-tipo">Categoría</label>
               <select id="cat-tipo" class="form-control form-select" required>
                 <option value="">— Seleccionar —</option>
               </select>
             </div>
             <div class="form-group">
-              <label class="form-label" for="cat-unidad">Unidad de medida</label>
-              <select id="cat-unidad" class="form-control form-select" required>
-                <option value="metros">Metros</option>
-                <option value="cantidad">Cantidad</option>
-                <option value="kg">Kilogramos</option>
-                <option value="rollos">Rollos</option>
-              </select>
+              <label class="form-label" for="cat-unidad">Unidad base</label>
+              <select id="cat-unidad" class="form-control form-select select-unidad" required></select>
             </div>
           </div>
           <div id="cat-atributos-container"></div>
+          <div class="form-group">
+            <label class="form-label">Presentaciones <span class="optional">(opcional)</span></label>
+            <div class="tela-nota">Cómo se compra o se cuenta además de la unidad base. Ej: 1 rollo = 20 metros · 1 paquete = 100 unidades.</div>
+            <div id="cat-presentaciones" class="editor"></div>
+          </div>
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label" for="cat-stock">Stock inicial</label>
-              <input type="number" id="cat-stock" class="form-control" min="0" step="0.01" value="0" />
+              <label class="form-label" for="cat-stock" id="cat-label-stock">Stock inicial</label>
+              <input type="number" id="cat-stock" class="form-control" min="0" step="any" value="0" />
+              <div class="campo-hint" id="cat-stock-hint"></div>
             </div>
             <div class="form-group">
-              <label class="form-label" for="cat-minimo">Stock mínimo (alerta)</label>
-              <input type="number" id="cat-minimo" class="form-control" min="0" step="0.01" value="0" />
+              <label class="form-label" for="cat-minimo" id="cat-label-minimo">Stock mínimo (alerta)</label>
+              <input type="number" id="cat-minimo" class="form-control" min="0" step="any" value="0" />
+              <div class="campo-hint" id="cat-minimo-hint"></div>
             </div>
-          </div>
-          <div id="cat-stock-tela-nota" class="tela-nota hidden">
-            ℹ Tela: ingresá en rollos — el sistema guarda en metros automáticamente (1 rollo = 20 m)
           </div>
           <div class="form-group">
             <label class="form-label">Imagen <span class="optional">(opcional)</span></label>
@@ -366,7 +358,83 @@
       </div>
     </section>
 
+    <!-- ===== CATEGORÍAS PAGE ===== -->
+    <section id="page-categorias" class="page">
+      <div class="page-header">
+        <h1>Categorías</h1>
+        <p class="page-sub">Qué datos se piden en cada categoría de insumo, cómo se cuenta y con qué unidades</p>
+      </div>
+
+      <div class="form-card" id="card-categoria">
+        <h2 class="form-card-title" id="catg-form-titulo">Nueva categoría</h2>
+        <form id="form-categoria" autocomplete="off">
+          <input type="hidden" id="catg-id" />
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="catg-nombre">Nombre</label>
+              <input type="text" id="catg-nombre" class="form-control" maxlength="60" placeholder="Ej: Ganchos" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="catg-unidad">Unidad base sugerida <span class="optional">(opcional)</span></label>
+              <select id="catg-unidad" class="form-control form-select select-unidad" data-vacio="— Sin sugerencia —"></select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Presentaciones sugeridas <span class="optional">(opcional)</span></label>
+            <div class="tela-nota">Se proponen al dar de alta un insumo de esta categoría; en cada insumo se pueden ajustar (una tela puede traer 20 m por rollo y otra 35).</div>
+            <div id="catg-presentaciones" class="editor"></div>
+          </div>
+
+          <div class="form-group" id="catg-campos">
+            <label class="form-label">Características que se piden <span class="optional">(opcional)</span></label>
+            <div class="tela-nota">Ej: Talle (lista: S, M, L) · Color (texto) · Ancho en mm (número).</div>
+            <div class="editor-lista"></div>
+            <button type="button" class="btn-link" id="catg-agregar-campo">+ Agregar característica</button>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" id="btn-catg-cancelar" class="btn-secondary hidden">Cancelar edición</button>
+            <button type="submit" class="btn-primary">Guardar categoría</button>
+          </div>
+        </form>
+        <div id="resultado-categoria" class="resultado hidden"></div>
+      </div>
+
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Categoría</th>
+              <th>Unidad base</th>
+              <th>Presentaciones</th>
+              <th>Características</th>
+              <th>Insumos</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tbody-categorias">
+            <tr><td colspan="6" class="loading-row">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="form-card card-unidades" id="card-unidades">
+        <h2 class="form-card-title">Unidades de medida</h2>
+        <div class="tela-nota">Son las únicas unidades que se pueden elegir en insumos y categorías. Para corregir una mal escrita, renombrala: si le ponés el nombre de otra que ya existe, se unifican y los insumos pasan a la correcta.</div>
+        <form id="form-unidad" class="unidad-alta" autocomplete="off">
+          <input type="text" id="unidad-nueva" class="form-control" maxlength="20" placeholder="Nueva unidad (ej: litros)" required />
+          <button type="submit" class="btn-secondary">Agregar</button>
+        </form>
+        <div id="lista-unidades" class="lista-unidades"></div>
+        <div id="resultado-unidad" class="resultado hidden"></div>
+      </div>
+    </section>
+
   </main>
+
+  <!-- Nombres de presentaciones ya usados (rollo, paquete...) para no escribirlos distinto -->
+  <datalist id="presentaciones-sugeridas"></datalist>
 
   <!-- MODAL EDITAR INSUMO -->
   <div id="modal-editar" class="modal-overlay hidden" role="dialog" aria-modal="true">
@@ -383,30 +451,31 @@
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label" for="edit-tipo">Tipo</label>
+            <label class="form-label" for="edit-tipo">Categoría</label>
             <select id="edit-tipo" class="form-control form-select" required>
               <option value="">— Seleccionar —</option>
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label" for="edit-unidad">Unidad de medida</label>
-            <select id="edit-unidad" class="form-control form-select" required>
-              <option value="metros">Metros</option>
-              <option value="cantidad">Cantidad</option>
-              <option value="kg">Kilogramos</option>
-              <option value="rollos">Rollos</option>
-            </select>
+            <label class="form-label" for="edit-unidad">Unidad base</label>
+            <select id="edit-unidad" class="form-control form-select select-unidad" required></select>
           </div>
         </div>
         <div id="edit-atributos-container"></div>
+        <div class="form-group">
+          <label class="form-label">Presentaciones <span class="optional">(opcional)</span></label>
+          <div id="edit-presentaciones" class="editor"></div>
+        </div>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label" for="edit-stock">Stock actual</label>
-            <input type="number" id="edit-stock" class="form-control" min="0" step="0.01" />
+            <label class="form-label" for="edit-stock" id="edit-label-stock">Stock actual</label>
+            <input type="number" id="edit-stock" class="form-control" min="0" step="any" />
+            <div class="campo-hint" id="edit-stock-hint"></div>
           </div>
           <div class="form-group">
-            <label class="form-label" for="edit-minimo">Stock mínimo</label>
-            <input type="number" id="edit-minimo" class="form-control" min="0" step="0.01" />
+            <label class="form-label" for="edit-minimo" id="edit-label-minimo">Stock mínimo</label>
+            <input type="number" id="edit-minimo" class="form-control" min="0" step="any" />
+            <div class="campo-hint" id="edit-minimo-hint"></div>
           </div>
         </div>
         <div class="form-group">

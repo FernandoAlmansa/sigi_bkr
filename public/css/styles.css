@@ -966,3 +966,101 @@ html, body {
   .form-row { grid-template-columns: 1fr; }
   .steps { display: none; }
 }
+
+/* ── CATEGORÍAS / PRESENTACIONES CONFIGURABLES ── */
+.form-row-wrap { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+
+.form-card-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 18px;
+}
+
+#page-categorias .form-card { max-width: 820px; margin-bottom: 24px; }
+
+.editor { margin-top: 8px; }
+.editor-lista { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.editor-lista:empty { margin-top: 0; }
+
+.editor-fila {
+  display: grid;
+  grid-template-columns: auto minmax(120px, 1.3fr) auto minmax(80px, 0.8fr) minmax(70px, auto) auto;
+  gap: 8px;
+  align-items: center;
+}
+.editor-fila-campo {
+  grid-template-columns: minmax(130px, 1.2fr) minmax(140px, 1fr) minmax(160px, 1.6fr) auto auto;
+}
+.editor-fila .form-control { padding: 8px 10px; font-size: 13px; }
+.editor-texto { font-size: 13px; color: var(--text-muted); white-space: nowrap; }
+
+.editor-quitar {
+  background: none;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  padding: 6px 9px;
+  cursor: pointer;
+  line-height: 1;
+}
+.editor-quitar:hover { border-color: var(--danger); color: var(--danger-text); background: var(--danger-bg); }
+
+.campo-oblig {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--pink-deep);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 0 0;
+  cursor: pointer;
+}
+.btn-link:hover { text-decoration: underline; }
+
+.campo-hint { min-height: 16px; margin-top: 4px; font-size: 12px; color: var(--text-muted); }
+
+.unidad-select { flex: 0 0 auto; width: auto; min-width: 150px; }
+.tela-toggle-row { flex-wrap: wrap; }
+
+.td-acciones { white-space: nowrap; text-align: right; }
+.invisible { visibility: hidden; }
+.editor-quitar { justify-self: end; }
+.td-acciones .btn-editar + .btn-editar { margin-left: 6px; }
+
+@media (max-width: 700px) {
+  .table-container { overflow-x: auto; }
+  .editor-fila-campo .campo-opciones.invisible { display: none; }
+  .editor-fila { grid-template-columns: auto 1fr auto 1fr auto; }
+  .editor-fila .pres-unidad { grid-column: 4; }
+  .editor-fila-campo { grid-template-columns: 1fr 1fr; }
+  .editor-fila-campo .campo-opciones { grid-column: 1 / -1; }
+}
+
+/* ── UNIDADES DE MEDIDA ── */
+#page-categorias .card-unidades { margin-top: 24px; margin-bottom: 0; }
+.unidad-alta { display: flex; gap: 10px; margin: 14px 0; }
+.unidad-alta .form-control { flex: 1; }
+.lista-unidades { display: flex; flex-wrap: wrap; gap: 8px; }
+.unidad-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 6px 4px 14px;
+  background: var(--bg-surface);
+}
+.unidad-nombre { font-size: 13px; font-weight: 600; color: var(--text); }
+.unidad-item .btn-editar { padding: 3px 7px; font-size: 13px; }
+.unidad-item .btn-editar:disabled { opacity: .35; cursor: not-allowed; }

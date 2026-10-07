@@ -27,7 +27,7 @@ const step3 = document.getElementById('step-3-indicator');
 
 let insumoSeleccionado = null;
 let allInsumos = [];
-let modoRollo = false;
+let presentacionEgreso = ''; // '' = unidad base; si no, nombre de la presentación
 
 /* ── Cargar insumos en memoria (para autocompletado offline) ── */
 async function cargarInsumos() {
@@ -45,15 +45,10 @@ async function poblarTiposEgreso() {
   if (!sel) return;
 
   // Usar tiposCache de app.js; si está vacío, fetchear
-  if (tiposCache.length === 0) {
-    try {
-      const res  = await fetch(`${API}/insumos/tipos`);
-      tiposCache = await res.json();
-    } catch { return; }
-  }
+  try { await asegurarTipos(); } catch { return; }
 
   const valorActual = sel.value;
-  sel.innerHTML = '<option value="">— Todos los tipos —</option>' +
+  sel.innerHTML = '<option value="">— Todas las categorías —</option>' +
     tiposCache.map(t => `<option value="${t.id}">${esc(t.nombre)}</option>`).join('');
   sel.value = valorActual; // preservar selección si ya había una
 }
@@ -96,7 +91,7 @@ inputTexto?.addEventListener('input', () => {
           <small style="opacity:0.5;font-size:11px"> — ${i.tipo_nombre || ''}${formatAtributos(i.atributos) ? ' · ' + formatAtributos(i.atributos) : ''}</small>
         </span>
         <span class="autocomplete-stock ${critico ? 'critico' : ''}">
-          ${esTela(i) ? stockDisplay(i) : `${parseFloat(i.stock_actual).toLocaleString('es-AR', {maximumFractionDigits:2})} ${i.unidad_medida}`}
+          ${stockDisplay(i)}
         </span>
       </li>
     `;
@@ -156,25 +151,10 @@ function seleccionarInsumo(insumo) {
 
   // Mostrar info del insumo
   const critico = insumo.estado_critico;
-  const metros  = parseFloat(insumo.stock_actual);
-
-  if (esTela(insumo)) {
-    const rollos = metros / METROS_POR_ROLLO;
-    infoStock.textContent = `${metros.toLocaleString('es-AR', {maximumFractionDigits:2})} m (${rollos.toLocaleString('es-AR', {maximumFractionDigits:2})} rollos)`;
-  } else {
-    infoStock.textContent = `${metros.toLocaleString('es-AR', {maximumFractionDigits:2})} ${insumo.unidad_medida}`;
-  }
-
-  infoMinimo.textContent = `${parseFloat(insumo.stock_minimo).toLocaleString('es-AR', {maximumFractionDigits:2})} ${insumo.unidad_medida}`;
-
-  // Para tela: la unidad la elige el usuario con el toggle, no se muestra fija
-  const filaUnidad = infoUnidad?.closest('.info-row');
-  if (esTela(insumo)) {
-    if (filaUnidad) filaUnidad.classList.add('hidden');
-  } else {
-    if (filaUnidad) filaUnidad.classList.remove('hidden');
-    infoUnidad.textContent = insumo.unidad_medida;
-  }
+  infoStock.innerHTML  = stockDisplay(insumo);
+  infoMinimo.innerHTML = stockDisplay(insumo, 'minimo');
+  const pres = describirPresentaciones(insumo);
+  infoUnidad.innerHTML = `${esc(insumo.unidad_medida)}${pres ? ` <small class="attr-sub">· ${pres}</small>` : ''}`;
   infoEstado.textContent = critico ? '⚠ Crítico' : '✓ Normal';
   infoEstado.className   = `info-value ${critico ? 'critico' : 'normal'}`;
   infoStock.className    = `info-value ${critico ? 'critico' : ''}`;
@@ -201,47 +181,41 @@ function seleccionarInsumo(insumo) {
 
   insumoInfo.classList.remove('hidden');
 
-  // Tela: mostrar toggle de modo
-  const telaOpciones = document.getElementById('tela-egreso-opciones');
-  if (esTela(insumo)) {
-    telaOpciones?.classList.remove('hidden');
-    setModoMetros();
-  } else {
-    telaOpciones?.classList.add('hidden');
-    modoRollo = false;
-    inputCant.disabled = false;
-    badgeUnidad.textContent = insumo.unidad_medida;
-  }
+  // Si el insumo tiene presentaciones, se elige en cuál se da de baja.
+  renderBotonesPresentacion(insumo);
 
   setStep(2);
   setTimeout(() => inputCant?.focus(), 50);
 }
 
-/* ── TELA: TOGGLE METROS / ROLLO ── */
-function setModoMetros() {
-  modoRollo = false;
-  document.getElementById('btn-modo-metros')?.classList.add('tela-toggle-active');
-  document.getElementById('btn-modo-rollo')?.classList.remove('tela-toggle-active');
-  inputCant.value    = '';
-  inputCant.disabled = false;
-  badgeUnidad.textContent = 'metros';
-  advertencia.classList.add('hidden');
-  btnRegistrar.disabled = true;
-  setStep(2);
+/* ── PRESENTACIÓN DEL EGRESO (unidad base, rollo, paquete...) ── */
+function renderBotonesPresentacion(insumo) {
+  const cont  = document.getElementById('presentacion-egreso-opciones');
+  const filas = document.getElementById('presentacion-botones');
+  const opciones = [{ nombre: '', etiqueta: insumo.unidad_medida },
+    ...insumo.presentaciones.map(p => ({ nombre: p.nombre, etiqueta: `${plural(p.nombre, 2)} (${num(p.factor)} ${insumo.unidad_medida})` }))];
+
+  filas.innerHTML = opciones.map(o =>
+    `<button type="button" class="tela-toggle-btn" data-presentacion="${esc(o.nombre)}">${esc(o.etiqueta)}</button>`
+  ).join('');
+  cont.classList.toggle('hidden', !insumo.presentaciones.length);
+  elegirPresentacionEgreso('');
 }
 
-function setModoRollo() {
-  modoRollo = true;
-  document.getElementById('btn-modo-metros')?.classList.remove('tela-toggle-active');
-  document.getElementById('btn-modo-rollo')?.classList.add('tela-toggle-active');
-  inputCant.value    = '';
-  inputCant.disabled = false;
-  badgeUnidad.textContent = 'rollos';
-  advertencia.classList.add('hidden');
-  btnRegistrar.disabled = true;
-  setStep(2);
-  setTimeout(() => inputCant?.focus(), 50);
+function elegirPresentacionEgreso(nombre) {
+  presentacionEgreso = nombre;
+  document.querySelectorAll('#presentacion-botones .tela-toggle-btn').forEach(b =>
+    b.classList.toggle('tela-toggle-active', b.dataset.presentacion === nombre));
+  badgeUnidad.textContent = nombre ? plural(nombre, 2) : (insumoSeleccionado?.unidad_medida || 'unid.');
+  validarCantidad();
 }
+
+document.getElementById('presentacion-botones')?.addEventListener('click', e => {
+  const btn = e.target.closest('.tela-toggle-btn');
+  if (!btn) return;
+  elegirPresentacionEgreso(btn.dataset.presentacion);
+  inputCant?.focus();
+});
 
 document.getElementById('egreso-tipo')?.addEventListener('change', () => {
   if (insumoSeleccionado) {
@@ -252,13 +226,10 @@ document.getElementById('egreso-tipo')?.addEventListener('change', () => {
   inputTexto.focus();
 });
 
-document.getElementById('btn-modo-metros')?.addEventListener('click', setModoMetros);
-document.getElementById('btn-modo-rollo')?.addEventListener('click', setModoRollo);
 
 /* ── VALIDACIÓN EN TIEMPO REAL (RD01 frontend) ── */
 function validarCantidad() {
-  const cantidadInput  = parseFloat(inputCant.value);
-  const cantidadMetros = modoRollo ? cantidadInput * METROS_POR_ROLLO : cantidadInput;
+  const cantidadInput = parseFloat(inputCant.value);
 
   if (!insumoSeleccionado || isNaN(cantidadInput) || cantidadInput <= 0) {
     btnRegistrar.disabled = true;
@@ -267,14 +238,14 @@ function validarCantidad() {
     return;
   }
 
-  const stockMetros = parseFloat(insumoSeleccionado.stock_actual);
-  const stockRollos = stockMetros / METROS_POR_ROLLO;
+  const factor     = factorDe(insumoSeleccionado, presentacionEgreso);
+  const stockBase  = parseFloat(insumoSeleccionado.stock_actual);
 
-  if (cantidadMetros > stockMetros) {
+  if (cantidadInput * factor > stockBase) {
+    const disponible = stockBase / factor;
+    const unidad = presentacionEgreso ? plural(presentacionEgreso, disponible) : insumoSeleccionado.unidad_medida;
     advertencia.classList.remove('hidden');
-    advertencia.textContent = modoRollo
-      ? `⚠ Stock insuficiente. Hay ${stockRollos.toLocaleString('es-AR', {maximumFractionDigits:2})} rollos disponibles.`
-      : `⚠ Stock insuficiente. Hay ${stockMetros.toLocaleString('es-AR', {maximumFractionDigits:2})} metros disponibles.`;
+    advertencia.textContent = `⚠ Stock insuficiente. Hay ${num(disponible)} ${unidad} disponibles.`;
     btnRegistrar.disabled = true;
     setStep(2);
   } else {
@@ -301,7 +272,6 @@ formEgreso?.addEventListener('submit', async e => {
     return;
   }
 
-  const cantidad = modoRollo ? cantidadInput * METROS_POR_ROLLO : cantidadInput;
   const obs = document.getElementById('input-obs').value.trim();
 
   btnRegistrar.disabled    = true;
@@ -313,8 +283,9 @@ formEgreso?.addEventListener('submit', async e => {
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({
         id_insumo:   parseInt(inputId.value),
-        cantidad,
-        observacion: obs || null,
+        cantidad:     cantidadInput,
+        presentacion: presentacionEgreso || null,
+        observacion:  obs || null,
         usuario:     'Taller'
       })
     });
@@ -322,7 +293,7 @@ formEgreso?.addEventListener('submit', async e => {
     const data = await res.json();
 
     if (res.ok) {
-      mostrarOk(data, modoRollo ? cantidadInput : null);
+      mostrarOk(data);
       resetForm();
 
       // Refrescar cache de insumos para que el badge del navbar se actualice
@@ -354,9 +325,9 @@ function limpiarSeleccion() {
   insumoInfo?.classList.add('hidden');
   advertencia?.classList.add('hidden');
   btnRegistrar.disabled = true;
-  modoRollo = false;
+  presentacionEgreso = '';
   inputCant.disabled = false;
-  document.getElementById('tela-egreso-opciones')?.classList.add('hidden');
+  document.getElementById('presentacion-egreso-opciones')?.classList.add('hidden');
   document.getElementById('info-atributos-row')?.classList.add('hidden');
   infoUnidad?.closest('.info-row')?.classList.remove('hidden');
   setStep(1);
@@ -381,19 +352,16 @@ function resaltar(nombre, q) {
   );
 }
 
-function mostrarOk(data, rollosUsados = null) {
+function mostrarOk(data) {
   divResultado.className = 'resultado ok';
   divResultado.classList.remove('hidden');
 
-  const stockMetros = parseFloat(data.nuevo_stock).toLocaleString('es-AR', {maximumFractionDigits:2});
-  const stockRollos = (parseFloat(data.nuevo_stock) / METROS_POR_ROLLO).toLocaleString('es-AR', {maximumFractionDigits:2});
-  const stockStr    = rollosUsados !== null
-    ? `${stockMetros} m (${stockRollos} rollos)`
-    : `${stockMetros} ${data.unidad}`;
+  const insumo  = { unidad_medida: data.unidad, presentaciones: data.presentaciones };
+  const baja    = data.presentacion
+    ? `${num(data.cantidad_presentacion)} ${plural(data.presentacion, data.cantidad_presentacion)} (${num(data.cantidad)} ${data.unidad})`
+    : `${num(data.cantidad)} ${data.unidad}`;
 
-  let html = `✓ Egreso registrado. Stock de <strong>${data.insumo}</strong>: ${stockStr}`;
-
-  divResultado.innerHTML = html;
+  divResultado.innerHTML = `✓ Egreso de ${esc(baja)} registrado. Stock de <strong>${esc(data.insumo)}</strong>: ${cantidadDisplay(insumo, data.nuevo_stock)}`;
 
   // Si quedó en estado crítico — alerta visual adicional (RD02)
   if (data.estado_critico) {

@@ -1,8 +1,16 @@
 const db = require('./db');
 const Insumo = require('../domain/Insumo');
 
+// Presentaciones del insumo agregadas como JSON, ordenadas de menor a mayor.
+const SUBSELECT_PRESENTACIONES = `
+  COALESCE((
+    SELECT json_agg(json_build_object('id', p.id, 'nombre', p.nombre, 'factor', p.factor) ORDER BY p.factor)
+    FROM presentaciones p WHERE p.id_insumo = i.id
+  ), '[]'::json) AS presentaciones
+`;
+
 const SELECT_BASE = `
-  SELECT i.*, t.nombre AS tipo_nombre
+  SELECT i.*, t.nombre AS tipo_nombre, ${SUBSELECT_PRESENTACIONES}
   FROM insumos i
   JOIN tipos_insumo t ON t.id = i.id_tipo
 `;
@@ -53,7 +61,8 @@ class InsumoRepository {
    */
   async obtenerParaActualizar(id, client) {
     const { rows } = await client.query(
-      'SELECT * FROM insumos WHERE id = $1 AND activo = TRUE FOR UPDATE',
+      `SELECT i.*, ${SUBSELECT_PRESENTACIONES}
+       FROM insumos i WHERE i.id = $1 AND i.activo = TRUE FOR UPDATE`,
       [id],
     );
     return Insumo.desdeFila(rows[0]);
@@ -81,8 +90,10 @@ class InsumoRepository {
     for (const [columna, valor] of Object.entries(campos)) {
       params.push(columna === 'atributos' ? JSON.stringify(valor) : valor);
       asignaciones.push(`${columna} = $${params.length}`);
-      if (columna === 'stock_actual') expStockActual = `$${params.length}`;
-      if (columna === 'stock_minimo') expStockMinimo = `$${params.length}`;
+      // Cast explícito: si ambos lados son parámetros, `$4 <= $5` no tiene
+      // tipo deducible y Postgres responde "inconsistent types deduced".
+      if (columna === 'stock_actual') expStockActual = `$${params.length}::numeric`;
+      if (columna === 'stock_minimo') expStockMinimo = `$${params.length}::numeric`;
     }
     asignaciones.push(`estado_critico = (${expStockActual} <= ${expStockMinimo})`);
     params.push(id);
@@ -92,6 +103,18 @@ class InsumoRepository {
       params,
     );
     return Insumo.desdeFila(rows[0]);
+  }
+
+  /** Reemplaza el conjunto completo de presentaciones del insumo. */
+  async reemplazarPresentaciones(idInsumo, presentaciones, client) {
+    const q = this._q(client);
+    await q('DELETE FROM presentaciones WHERE id_insumo = $1', [idInsumo]);
+    for (const p of presentaciones) {
+      await q(
+        'INSERT INTO presentaciones (id_insumo, nombre, factor) VALUES ($1, $2, $3)',
+        [idInsumo, p.nombre, p.factor],
+      );
+    }
   }
 
   async actualizarStock(id, nuevoStock, client) {
