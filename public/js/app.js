@@ -793,7 +793,11 @@ document.getElementById('form-editar-insumo')?.addEventListener('submit', async 
   if (firmaPresentaciones(actual.presentaciones) !== firmaPresentaciones(orig.presentaciones)) body.presentaciones = actual.presentaciones;
 
   if (body.unidad_medida && Number(orig.stock_actual) > 0 &&
-      !confirm(`Cambiar la unidad de "${orig.unidad_medida}" a "${body.unidad_medida}" no convierte el stock: ${num(orig.stock_actual)} ${orig.unidad_medida} pasarían a ser ${num(orig.stock_actual)} ${body.unidad_medida}. ¿Seguro?`)) {
+      !(await confirmar(
+        'Cambiar unidad',
+        `¿Pasar ${fuerte(orig.nombre)} de ${fuerte(orig.unidad_medida)} a ${fuerte(body.unidad_medida)}?`,
+        { aceptar: 'Cambiar unidad',
+          nota: `El stock no se convierte: ${fuerte(num(orig.stock_actual) + ' ' + orig.unidad_medida)} quedarían como ${fuerte(num(orig.stock_actual) + ' ' + body.unidad_medida)}. Si hace falta, corregilo después con un ajuste.` }))) {
     return;
   }
 
@@ -1100,7 +1104,7 @@ document.getElementById('tbody-categorias')?.addEventListener('click', async e =
   }
   if (borrar) {
     const cat = categoriaDe(borrar.dataset.id);
-    if (!cat || !confirm(`¿Eliminar la categoría "${cat.nombre}"?`)) return;
+    if (!cat || !(await confirmar('Eliminar categoría', `¿Eliminar la categoría ${fuerte(cat.nombre)}?`, { aceptar: 'Eliminar', peligro: true }))) return;
     const res  = await fetch(`${API}/categorias/${cat.id}`, { method: 'DELETE' });
     const data = await res.json();
     const div  = document.getElementById('resultado-categoria');
@@ -1129,6 +1133,36 @@ document.getElementById('form-categoria')?.addEventListener('submit', async e =>
     return;
   }
 
+  // Si cambió la unidad de una categoría con insumos, se pregunta si aplicarla también a ellos.
+  const anterior = id ? categoriaDe(id) : null;
+  if (anterior && body.unidad_base && body.unidad_base !== (anterior.unidad_base || '') && anterior.cantidad_insumos > 0) {
+    try {
+      const lista = await (await fetch(`${API}/insumos?id_tipo=${id}`)).json();
+      const distintos = lista.filter(i => i.unidad_medida !== body.unidad_base);
+      if (distintos.length) {
+        const conteo = Object.entries(distintos.reduce((acc, i) => ({ ...acc, [i.unidad_medida]: (acc[i.unidad_medida] || 0) + 1 }), {}));
+        const porUnidad = conteo.length === 1
+          ? `en ${fuerte(conteo[0][0])}`
+          : `en otras unidades (${conteo.map(([u, n]) => `${n} en ${fuerte(u)}`).join(', ')})`;
+        const ejemplo = distintos[0];
+        const nombres = distintos.slice(0, 4).map(i => esc(i.nombre)).join(', ') + (distintos.length > 4 ? ` y ${distintos.length - 4} más` : '');
+        const eleccion = await dialogo({
+          titulo: `Cambiar unidad de "${anterior.nombre}"`,
+          mensaje: `<p>Esta categoría tiene ${fuerte(distintos.length + ' ' + plural('insumo', distintos.length))} ${porUnidad}.</p>
+                    <p class="dialogo-lista">${nombres}</p>
+                    <p>¿Los pasás también a ${fuerte(body.unidad_base)}?</p>`,
+          nota: `El stock no se convierte. Por ejemplo, ${fuerte(ejemplo.nombre)} tiene ${num(ejemplo.stock_actual)} ${esc(ejemplo.unidad_medida)} y quedaría en ${num(ejemplo.stock_actual)} ${esc(body.unidad_base)}.`,
+          botones: [
+            { texto: 'Sólo la categoría', valor: 'solo' },
+            { texto: 'Categoría e insumos', valor: 'todos', clase: 'btn-primary' },
+          ],
+        });
+        if (eleccion === null) return;   // cerró el diálogo: no se guarda nada
+        body.aplicar_unidad_a_insumos = eleccion === 'todos';
+      }
+    } catch { /* si no se pudo consultar, se cambia sólo la categoría */ }
+  }
+
   try {
     const res  = await fetch(id ? `${API}/categorias/${id}` : `${API}/categorias`, {
       method:  id ? 'PATCH' : 'POST',
@@ -1137,7 +1171,9 @@ document.getElementById('form-categoria')?.addEventListener('submit', async e =>
     });
     const data = await res.json();
     if (res.ok) {
-      mostrarResultado(div, 'ok', `✓ Categoría "${data.nombre}" ${id ? 'actualizada' : 'creada'}.`);
+      const extra = data.insumos_actualizados ? ` También se pasaron ${data.insumos_actualizados} insumo(s) a "${data.unidad_base}".` : '';
+      mostrarResultado(div, 'ok', `✓ Categoría "${data.nombre}" ${id ? 'actualizada' : 'creada'}.${extra}`);
+      if (data.insumos_actualizados) insumosCache = [];
       await asegurarTipos(true);
       renderTablaCategorias();
       limpiarFormCategoria();
@@ -1173,12 +1209,12 @@ async function guardarUnidad(url, metodo, nombre) {
     if (res.ok) return data;
 
     if (data.codigo === 'UNIDAD_PARECIDA' &&
-        confirm(`${data.error}\n\nAceptar: crearla igual (es otra unidad).\nCancelar: no crearla.`)) {
+        await confirmar('Unidad parecida', esc(data.error), { aceptar: 'Crearla igual', cancelar: 'No crearla' })) {
       body = { ...body, forzar: true };
       continue;
     }
     if (data.codigo === 'UNIDAD_EXISTENTE' && metodo === 'PATCH' && data.destino &&
-        confirm(`${data.error}\n\n¿Unificarlas?`)) {
+        await confirmar('Unidad existente', `${esc(data.error)}<br><br>¿Unificarlas?`, { aceptar: 'Unificar' })) {
       body = { ...body, fusionar: true };
       continue;
     }
@@ -1215,8 +1251,13 @@ document.getElementById('lista-unidades')?.addEventListener('click', async e => 
   if (!unidad) return;
 
   if (renombrar) {
-    const nombre = prompt(`Nuevo nombre para "${unidad.nombre}"\n(si escribís el de otra unidad existente, se unifican):`, unidad.nombre);
-    if (!nombre || nombre.trim().toLowerCase() === unidad.nombre) return;
+    const r = await dialogo({
+      titulo: `Renombrar "${unidad.nombre}"`,
+      campo: { valor: unidad.nombre, ayuda: 'Si escribís el nombre de otra unidad que ya existe, se unifican.' },
+      botones: [{ texto: 'Cancelar', valor: false }, { texto: 'Guardar', valor: true, clase: 'btn-primary' }],
+    });
+    const nombre = r && r.valor ? r.texto : '';
+    if (!nombre || nombre.toLowerCase() === unidad.nombre) return;
     const data = await guardarUnidad(`${API}/unidades/${unidad.id}`, 'PATCH', nombre);
     if (data) {
       mostrarResultado(div, 'ok', `✓ Listo: ahora es "${data.nombre}".`);
@@ -1225,7 +1266,7 @@ document.getElementById('lista-unidades')?.addEventListener('click', async e => 
     }
   }
   if (borrar) {
-    if (!confirm(`¿Eliminar la unidad "${unidad.nombre}"?`)) return;
+    if (!(await confirmar('Eliminar unidad', `¿Eliminar la unidad ${fuerte(unidad.nombre)}?`, { aceptar: 'Eliminar', peligro: true }))) return;
     const res  = await fetch(`${API}/unidades/${unidad.id}`, { method: 'DELETE' });
     const data = await res.json();
     if (res.ok) {
@@ -1238,6 +1279,66 @@ document.getElementById('lista-unidades')?.addEventListener('click', async e => 
 });
 
 /* ── HELPERS ── */
+/* ── DIÁLOGOS: reemplazan confirm()/prompt() del navegador con el estilo de la app ──
+   botones: [{ texto, valor, clase }]. Devuelve el valor del botón, o null si se cierra
+   (✕, Esc o clic afuera). Con `campo` devuelve { valor, texto } con lo escrito. */
+function dialogo({ titulo, mensaje = '', nota = '', botones, campo = null }) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay dialogo-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.innerHTML = `
+      <div class="modal-card dialogo-card">
+        <div class="modal-header">
+          <h2 class="modal-title">${esc(titulo)}</h2>
+          <button type="button" class="modal-close" data-cerrar aria-label="Cerrar">✕</button>
+        </div>
+        ${mensaje ? `<div class="dialogo-mensaje">${mensaje}</div>` : ''}
+        ${campo ? `<input type="text" class="form-control dialogo-campo" value="${esc(campo.valor || '')}" />
+                   ${campo.ayuda ? `<div class="campo-hint">${esc(campo.ayuda)}</div>` : ''}` : ''}
+        ${nota ? `<div class="dialogo-nota">${nota}</div>` : ''}
+        <div class="modal-actions dialogo-acciones">
+          ${botones.map((b, i) => `<button type="button" class="${b.clase || 'btn-secondary'}" data-i="${i}">${esc(b.texto)}</button>`).join('')}
+        </div>
+      </div>`;
+
+    const input = overlay.querySelector('.dialogo-campo');
+    const cerrar = (valor) => {
+      document.removeEventListener('keydown', teclas, true);
+      overlay.remove();
+      resolve(valor === null || !campo ? valor : { valor, texto: input.value.trim() });
+    };
+    const teclas = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cerrar(null); }
+      if (e.key === 'Enter' && e.target === input) { e.preventDefault(); cerrar(botones[botones.length - 1].valor); }
+    };
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay || e.target.closest('[data-cerrar]')) return cerrar(null);
+      const btn = e.target.closest('[data-i]');
+      if (btn) cerrar(botones[Number(btn.dataset.i)].valor);
+    });
+    document.addEventListener('keydown', teclas, true);
+    document.body.appendChild(overlay);
+    (input || overlay.querySelector(`[data-i="${botones.length - 1}"]`)).focus();
+    if (input) input.select();
+  });
+}
+
+/* Sí/No con el estilo de la app. Devuelve true sólo si se eligió `aceptar`. */
+async function confirmar(titulo, mensaje, { aceptar = 'Aceptar', cancelar = 'Cancelar', peligro = false, nota = '' } = {}) {
+  const r = await dialogo({
+    titulo, mensaje, nota,
+    botones: [
+      { texto: cancelar, valor: false },
+      { texto: aceptar, valor: true, clase: peligro ? 'btn-peligro' : 'btn-primary' },
+    ],
+  });
+  return r === true;
+}
+
+const fuerte = (t) => `<strong>${esc(t)}</strong>`;
+
 function esc(str) {
   if (!str) return '';
   return String(str).replace(/[&<>"']/g, c =>

@@ -146,8 +146,20 @@ class InventarioFacade {
         throw new ErrorReglaNegocio(`Ya existe la categoría "${otra.nombre}".`, {}, 'DUPLICADO');
       }
     }
-    await this.tipos.actualizar(id, campos);
-    return this.tipos.obtenerPorId(id);
+    // Por defecto la unidad de la categoría es sólo una sugerencia para los
+    // insumos nuevos. Si el usuario lo confirma, se aplica también a los que
+    // ya existen (el número de stock no se convierte: 10 cajas pasan a ser 10
+    // de la unidad nueva).
+    const aplicar = body.aplicar_unidad_a_insumos === true && campos.unidad_base;
+    let insumosActualizados = 0;
+    await this.enTransaccion(async (client) => {
+      await this.tipos.actualizar(id, campos, client);
+      if (aplicar) {
+        insumosActualizados = await this.insumos.cambiarUnidadPorCategoria(id, campos.unidad_base, client);
+      }
+    });
+    const categoria = await this.tipos.obtenerPorId(id);
+    return Object.assign(categoria, { insumos_actualizados: insumosActualizados });
   }
 
   /**

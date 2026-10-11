@@ -107,6 +107,7 @@ class Categoria {
       activo: this.activo,
     };
     if (this.cantidad_insumos !== undefined) json.cantidad_insumos = this.cantidad_insumos;
+    if (this.insumos_actualizados !== undefined) json.insumos_actualizados = this.insumos_actualizados;
     return json;
   }
 }
