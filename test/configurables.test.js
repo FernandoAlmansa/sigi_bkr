@@ -176,3 +176,26 @@ test('Alta de insumo con una unidad que no está en el catálogo se rechaza', as
     ErrorValidacion,
   );
 });
+
+test('Modificar categoría: la unidad se aplica a los insumos sólo si se pide', async () => {
+  const llamadas = [];
+  const facade = new InventarioFacade({
+    tipos: {
+      obtenerPorId: async () => new Categoria({ id: 12, nombre: 'Regalo' }),
+      buscarPorNombre: async () => null,
+      actualizar: async (id, campos) => llamadas.push(['categoria', campos.unidad_base]),
+    },
+    insumos: { cambiarUnidadPorCategoria: async (id, unidad) => { llamadas.push(['insumos', unidad]); return 3; } },
+    unidades: { existe: async () => true },
+    alertas: new AlertaService([]),
+    transacciones: (fn) => fn({}),
+  });
+
+  const sinAplicar = await facade.modificarCategoria(12, { unidad_base: 'cajas' });
+  assert.deepStrictEqual(llamadas, [['categoria', 'cajas']]);
+  assert.strictEqual(sinAplicar.insumos_actualizados, 0);
+
+  const conAplicar = await facade.modificarCategoria(12, { unidad_base: 'cajas', aplicar_unidad_a_insumos: true });
+  assert.deepStrictEqual(llamadas.slice(1), [['categoria', 'cajas'], ['insumos', 'cajas']]);
+  assert.strictEqual(conAplicar.insumos_actualizados, 3);
+});

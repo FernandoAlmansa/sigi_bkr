@@ -105,6 +105,15 @@ class InsumoRepository {
     return Insumo.desdeFila(rows[0]);
   }
 
+  /** Pasa a `unidad` todos los insumos activos de una categoría. Devuelve cuántos cambió. */
+  async cambiarUnidadPorCategoria(idTipo, unidad, client) {
+    const { rowCount } = await this._q(client)(
+      'UPDATE insumos SET unidad_medida = $1 WHERE id_tipo = $2 AND activo AND unidad_medida <> $1',
+      [unidad, idTipo],
+    );
+    return rowCount;
+  }
+
   /** Reemplaza el conjunto completo de presentaciones del insumo. */
   async reemplazarPresentaciones(idInsumo, presentaciones, client) {
     const q = this._q(client);

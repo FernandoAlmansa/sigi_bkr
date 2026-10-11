@@ -1085,3 +1085,52 @@ input[readonly].form-control { background: var(--bg); color: var(--text-muted); 
 .filtro-fecha .form-control { width: auto; padding: 8px 10px; }
 .historial-pie { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; }
 .historial-pie .btn-link { padding: 0; }
+
+/* ── DIÁLOGOS (reemplazan confirm/prompt del navegador) ── */
+.dialogo-overlay { z-index: 300; animation: dialogo-fondo .15s ease-out; }
+.dialogo-card { max-width: 440px; animation: dialogo-entrada .18s ease-out; }
+.dialogo-card .modal-header { margin-bottom: 12px; }
+.dialogo-mensaje { font-size: 14px; color: var(--text); line-height: 1.55; }
+.dialogo-mensaje p + p { margin-top: 10px; }
+.dialogo-mensaje strong { color: var(--pink-deep); font-weight: 600; }
+.dialogo-lista {
+  font-size: 13px;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+}
+.dialogo-nota {
+  margin-top: 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--pink-soft);
+  border-left: 3px solid var(--pink-dark);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+}
+.dialogo-campo { margin-top: 4px; }
+.dialogo-acciones { flex-wrap: wrap; }
+.btn-peligro {
+  background: var(--danger);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 11px 24px;
+  cursor: pointer;
+  transition: background .15s;
+}
+.btn-peligro:hover { background: var(--danger-text); }
+@keyframes dialogo-fondo { from { opacity: 0; } }
+@keyframes dialogo-entrada { from { opacity: 0; transform: translateY(8px) scale(.98); } }
+@media (max-width: 480px) {
+  .dialogo-acciones > * { flex: 1 1 100%; }
+}
+.dialogo-acciones .btn-secondary { font-size: 14px; padding: 11px 20px; }
+.dialogo-acciones button:focus { outline: none; }
+.dialogo-acciones button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--pink-soft), 0 0 0 5px var(--pink); }
