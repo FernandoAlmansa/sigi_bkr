@@ -138,7 +138,12 @@ function cantidadTexto(insumo, valor) {
 }
 
 function cantidadDisplay(insumo, valor) {
-  return esc(cantidadTexto(insumo, valor));
+  const base = `${num(valor)} ${insumo?.unidad_medida || ''}`;
+  const p = presentacionParaMostrar(insumo, valor);
+  if (!p) return esc(base);
+  const enPres = valor / p.factor;
+  // La equivalencia va en un span: en celular baja a su propio renglón.
+  return `${esc(base)} <span class="cant-pres">(${esc(num(enPres) + ' ' + plural(p.nombre, enPres))})</span>`;
 }
 
 function factorDe(insumo, nombrePresentacion) {
@@ -225,12 +230,14 @@ const navLinks = document.querySelectorAll('.nav-link');
 
 function showPage(pageId) {
   pages.forEach(p => p.classList.remove('active'));
-  navLinks.forEach(l => l.classList.remove('active'));
+  // Hay links a la misma página en la barra de arriba, la de abajo (celular) y la hoja "Más".
+  navLinks.forEach(l => l.classList.toggle('active', l.dataset.page === pageId));
+  document.getElementById('tab-mas')?.classList.toggle('active', ['catalogo', 'categorias'].includes(pageId));
+  cerrarHojaMas();
 
   const page = document.getElementById(`page-${pageId}`);
-  const link = document.querySelector(`[data-page="${pageId}"]`);
   if (page) page.classList.add('active');
-  if (link) link.classList.add('active');
+  window.scrollTo(0, 0);
 
   // Acciones al cambiar de página
   if (pageId === 'dashboard') inicializarDashboard();
@@ -248,13 +255,30 @@ navLinks.forEach(link => {
   });
 });
 
+/* Hoja "Más" del celular: Catálogo y Categorías */
+const hojaMas = document.getElementById('hoja-mas');
+const tabMas  = document.getElementById('tab-mas');
+function cerrarHojaMas() {
+  hojaMas?.classList.add('hidden');
+  hojaMas?.setAttribute('aria-hidden', 'true');
+  tabMas?.setAttribute('aria-expanded', 'false');
+}
+tabMas?.addEventListener('click', () => {
+  const abrir = hojaMas.classList.contains('hidden');
+  hojaMas.classList.toggle('hidden', !abrir);
+  hojaMas.setAttribute('aria-hidden', String(!abrir));
+  tabMas.setAttribute('aria-expanded', String(abrir));
+});
+hojaMas?.addEventListener('click', e => { if (e.target === hojaMas) cerrarHojaMas(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarHojaMas(); });
+
 /* ── DASHBOARD ── */
 async function inicializarDashboard() {
   // Cargar tipos para el select
   try { await asegurarTipos(); } catch { return; }
   const sel = document.getElementById('dashboard-tipo');
   if (sel) {
-    sel.innerHTML = '<option value="">— Todas las categorías —</option>' +
+    sel.innerHTML = '<option value="">Todas las categorías</option>' +
       tiposCache.map(t => `<option value="${t.id}"${t.id === currentDashboardTipo ? ' selected' : ''}>${esc(t.nombre)}</option>`).join('');
   }
 
@@ -338,11 +362,28 @@ function renderPanelAlertas(insumos) {
     <div class="alert-item">
       <div class="alert-item-name">${esc(i.nombre)}</div>
       <div class="alert-item-stock">
-        ${stockDisplay(i)} / mín ${stockDisplay(i, 'minimo')}
+        <span class="ai-actual">${stockDisplay(i)}</span><span class="ai-sep"> / </span><span class="ai-min">mín ${stockDisplay(i, 'minimo')}</span>
       </div>
     </div>
   `).join('');
+
+  // En celular se muestran los primeros 3 y un botón para ver el resto.
+  const LIMITE = 3;
+  const btn = document.getElementById('btn-ver-criticos');
+  lista.classList.toggle('colapsada', criticos.length > LIMITE && !lista.dataset.abierta);
+  if (btn) {
+    btn.classList.toggle('hidden', criticos.length <= LIMITE);
+    btn.textContent = lista.classList.contains('colapsada') ? `Ver los ${criticos.length}` : 'Ver menos';
+  }
 }
+
+document.getElementById('btn-ver-criticos')?.addEventListener('click', () => {
+  const lista = document.getElementById('lista-criticos');
+  const abrir = lista.classList.contains('colapsada');
+  lista.classList.toggle('colapsada', !abrir);
+  if (abrir) lista.dataset.abierta = '1'; else delete lista.dataset.abierta;
+  document.getElementById('btn-ver-criticos').textContent = abrir ? 'Ver menos' : `Ver los ${lista.children.length}`;
+});
 
 function renderTablaInsumos(insumos, emptyMsg = 'No hay insumos en esta categoría.') {
   const tbody = document.getElementById('tbody-insumos');
@@ -358,19 +399,19 @@ function renderTablaInsumos(insumos, emptyMsg = 'No hay insumos en esta categor�
       ? `<img src="${esc(i.imagen_url)}" class="table-thumbnail" alt="" loading="lazy" />`
       : '';
     return `
-      <tr>
-        <td><div class="td-with-img">${thumb}<span>${esc(i.nombre)}${atributosVisibles(i) ? `<br><small class="attr-sub">${esc(atributosVisibles(i))}</small>` : ''}</span></div></td>
-        <td>${esc(i.tipo_nombre || '—')}</td>
-        <td class="stock-value ${critico ? 'stock-critico' : 'stock-normal'}">${stockDisplay(i)}</td>
-        <td class="stock-value">${stockDisplay(i, 'minimo')}</td>
-        <td>${esc(i.unidad_medida)}</td>
-        <td>
+      <tr class="${critico ? 'fila-critica' : ''}">
+        <td class="c-nombre"><div class="td-with-img">${thumb}<span>${esc(i.nombre)}${atributosVisibles(i) ? `<br><small class="attr-sub">${esc(atributosVisibles(i))}</small>` : ''}</span></div></td>
+        <td class="c-categoria">${esc(i.tipo_nombre || '—')}</td>
+        <td class="c-stock stock-value ${critico ? 'stock-critico' : 'stock-normal'}" data-label="Stock">${stockDisplay(i)}</td>
+        <td class="c-minimo stock-value" data-label="Mínimo">${stockDisplay(i, 'minimo')}</td>
+        <td class="c-unidad">${esc(i.unidad_medida)}</td>
+        <td class="c-estado">
           <span class="badge ${critico ? 'badge-critico' : 'badge-normal'}">
             ${critico ? 'Crítico' : 'Normal'}
           </span>
         </td>
-        <td>
-          <button class="btn-editar" data-id="${i.id}" title="Editar insumo">✎</button>
+        <td class="c-accion">
+          <button class="btn-editar" data-id="${i.id}" title="Editar insumo" aria-label="Editar ${esc(i.nombre)}">✎</button>
         </td>
       </tr>
     `;
@@ -442,16 +483,16 @@ function fechaInput(d) {
 function filaHistorial(m) {
   return `
       <tr>
-        <td>${formatFecha(m.fecha)}</td>
-        <td>${esc(m.insumo_nombre)}${m.observacion ? `<br><small class="attr-sub">${esc(m.observacion)}</small>` : ''}</td>
-        <td><span class="badge badge-${m.tipo_movimiento.toLowerCase()}">${m.tipo_movimiento}</span></td>
-        <td class="stock-value">${m.tipo_movimiento === 'AJUSTE'
+        <td class="c-fecha">${formatFecha(m.fecha)}</td>
+        <td class="c-nombre">${esc(m.insumo_nombre)}${m.observacion ? `<br><small class="attr-sub">${esc(m.observacion)}</small>` : ''}</td>
+        <td class="c-estado"><span class="badge badge-${m.tipo_movimiento.toLowerCase()}">${m.tipo_movimiento}</span></td>
+        <td class="c-cantidad stock-value" data-label="Cantidad">${m.tipo_movimiento === 'AJUSTE'
           ? `contado: ${m.presentacion ? `${num(m.cantidad_presentacion)} ${esc(plural(m.presentacion, m.cantidad_presentacion))}` : `${num(m.stock_resultante)} ${esc(m.unidad_medida)}`} <small class="attr-sub">(dif. ${num(m.cantidad)} ${esc(m.unidad_medida)})</small>`
           : m.presentacion
             ? `${num(m.cantidad_presentacion)} ${esc(plural(m.presentacion, m.cantidad_presentacion))} <small class="attr-sub">(${num(m.cantidad)} ${esc(m.unidad_medida)})</small>`
             : `${num(m.cantidad)} ${esc(m.unidad_medida)}`}</td>
-        <td class="stock-value">${num(m.stock_resultante)} ${esc(m.unidad_medida)}</td>
-        <td>${esc(m.usuario || '—')}</td>
+        <td class="c-resultante stock-value" data-label="Queda">${num(m.stock_resultante)} ${esc(m.unidad_medida)}</td>
+        <td class="c-usuario${m.usuario ? '' : ' vacio'}" data-label="Usuario">${esc(m.usuario || '—')}</td>
       </tr>`;
 }
 
@@ -1022,14 +1063,14 @@ function renderTablaCategorias() {
   }
   tbody.innerHTML = tiposCache.map(t => `
     <tr>
-      <td><strong>${esc(t.nombre)}</strong></td>
-      <td>${esc(t.unidad_base || '—')}</td>
-      <td>${t.presentaciones.length ? t.presentaciones.map(p => `1 ${esc(p.nombre)} = ${num(p.factor)}`).join('<br>') : '—'}</td>
-      <td>${t.campos.length
+      <td class="c-nombre"><strong>${esc(t.nombre)}</strong></td>
+      <td class="c-dato" data-label="Unidad">${esc(t.unidad_base || '—')}</td>
+      <td class="c-dato" data-label="Presentaciones">${t.presentaciones.length ? t.presentaciones.map(p => `1 ${esc(p.nombre)} = ${num(p.factor)}`).join('<br>') : '—'}</td>
+      <td class="c-dato" data-label="Características">${t.campos.length
         ? t.campos.map(c => `${esc(c.etiqueta)}${c.obligatorio ? ' *' : ''} <small class="attr-sub">${TIPOS_CAMPO_LABEL[c.tipo] || c.tipo}</small>`).join('<br>')
         : '—'}</td>
-      <td class="stock-value">${t.cantidad_insumos ?? 0}</td>
-      <td class="td-acciones">
+      <td class="c-dato stock-value" data-label="Insumos">${t.cantidad_insumos ?? 0}</td>
+      <td class="c-accion td-acciones">
         <button class="btn-editar btn-editar-categoria" data-id="${t.id}" title="Editar categoría">✎</button>
         <button class="btn-editar btn-borrar-categoria" data-id="${t.id}" title="Eliminar categoría">🗑</button>
       </td>

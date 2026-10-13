@@ -2,7 +2,8 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#FFFFFF" />
   <title>STOCK-BKR | Gestión de Inventario</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
@@ -31,6 +32,30 @@
     </div>
   </nav>
 
+  <!-- NAVEGACIÓN EN CELULAR Y TABLET: barra inferior (al alcance del pulgar).
+       En celular, Catálogo y Categorías van dentro de "Más". -->
+  <nav class="tabbar" aria-label="Secciones">
+    <a href="#" class="nav-link tab" data-page="dashboard"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg><span>Inicio</span></a>
+    <a href="#" class="nav-link tab" data-page="egreso"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M4 14v4.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V14"/></svg><span>Egreso</span></a>
+    <a href="#" class="nav-link tab" data-page="ingreso"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M4 14v4.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V14"/></svg><span>Ingreso</span></a>
+    <a href="#" class="nav-link tab tab-extra" data-page="catalogo"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/><path d="M12 8v8M8 12h8"/></svg><span>Catálogo</span></a>
+    <a href="#" class="nav-link tab tab-extra" data-page="categorias"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.6V4.5a1 1 0 0 1 1-1h8.1a1 1 0 0 1 .7.3l7.2 7.2a1 1 0 0 1 0 1.4l-8.1 8.1a1 1 0 0 1-1.4 0l-7.2-7.2a1 1 0 0 1-.3-.7z"/><circle cx="8.5" cy="8.5" r="1.5"/></svg><span>Categorías</span></a>
+    <a href="#" class="nav-link tab" data-page="historial"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg><span>Historial</span></a>
+    <button type="button" class="tab tab-mas" id="tab-mas" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5.5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18.5" cy="12" r="1.6"/></svg><span>Más</span></button>
+  </nav>
+
+  <div id="hoja-mas" class="hoja hidden" aria-hidden="true">
+    <div class="hoja-card" role="menu">
+      <span class="hoja-asa" aria-hidden="true"></span>
+      <a href="#" class="nav-link hoja-link" data-page="catalogo" role="menuitem">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/><path d="M12 8v8M8 12h8"/></svg><span><strong>Catálogo</strong><small>Dar de alta un insumo nuevo</small></span>
+      </a>
+      <a href="#" class="nav-link hoja-link" data-page="categorias" role="menuitem">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.6V4.5a1 1 0 0 1 1-1h8.1a1 1 0 0 1 .7.3l7.2 7.2a1 1 0 0 1 0 1.4l-8.1 8.1a1 1 0 0 1-1.4 0l-7.2-7.2a1 1 0 0 1-.3-.7z"/><circle cx="8.5" cy="8.5" r="1.5"/></svg><span><strong>Categorías</strong><small>Características, unidades y presentaciones</small></span>
+      </a>
+    </div>
+  </div>
+
   <!-- MAIN CONTENT -->
   <main class="main-content">
 
@@ -48,6 +73,7 @@
           <strong>Insumos en stock crítico</strong>
         </div>
         <div id="lista-criticos" class="alert-list"></div>
+        <button type="button" id="btn-ver-criticos" class="btn-ver-criticos hidden">Ver todos</button>
       </div>
 
       <!-- Stats cards -->
@@ -68,26 +94,27 @@
 
       <!-- Tabla de insumos -->
       <div class="table-container">
-        <div class="dashboard-tipo-row">
-          <select id="dashboard-tipo" class="form-control form-select dashboard-tipo-select">
-            <option value="">— Todas las categorías —</option>
+        <div class="table-toolbar toolbar-dashboard">
+          <label class="buscador">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+            <input type="search" id="buscador-tabla" placeholder="Buscar insumo..." class="buscador-input" aria-label="Buscar insumo" />
+          </label>
+          <select id="dashboard-tipo" class="form-control form-select toolbar-select" aria-label="Categoría">
+            <option value="">Todas las categorías</option>
           </select>
-        </div>
-        <div class="table-toolbar">
-          <input type="text" id="buscador-tabla" placeholder="Buscar insumo..." class="table-search" />
           <div class="filtro-estado-btns" role="group" aria-label="Filtrar por estado">
             <button class="filtro-btn filtro-btn-active" data-estado="todos">Todos</button>
             <button class="filtro-btn filtro-btn-warn" data-estado="critico">⚠ Críticos</button>
             <button class="filtro-btn" data-estado="normal">Normal</button>
           </div>
-          <select id="select-orden" class="form-control form-select filtro-orden">
+          <select id="select-orden" class="form-control form-select toolbar-select filtro-orden" aria-label="Orden">
             <option value="default">Críticos primero</option>
             <option value="menor-stock">Menor stock ↑</option>
             <option value="mayor-stock">Mayor stock ↓</option>
             <option value="nombre">A → Z</option>
           </select>
         </div>
-        <table class="data-table" id="tabla-insumos">
+        <table class="data-table tabla-tarjetas" id="tabla-insumos">
           <thead>
             <tr>
               <th>Insumo</th>
@@ -137,7 +164,7 @@
           <div class="form-group">
             <label class="form-label">Categoría <span class="optional">(opcional)</span></label>
             <select id="egreso-tipo" class="form-control form-select">
-              <option value="">— Todas las categorías —</option>
+              <option value="">Todas las categorías</option>
             </select>
           </div>
           <div class="form-group" id="group-insumo">
@@ -272,7 +299,7 @@
       </div>
 
       <div class="table-container">
-        <div class="table-toolbar">
+        <div class="table-toolbar toolbar-historial">
           <select id="filtro-tipo" class="form-control form-select filtro-historial">
             <option value="">Todos los movimientos</option>
             <option value="INGRESO">Ingresos</option>
@@ -281,9 +308,9 @@
           </select>
           <label class="filtro-fecha">Desde <input type="date" id="filtro-desde" class="form-control" /></label>
           <label class="filtro-fecha">Hasta <input type="date" id="filtro-hasta" class="form-control" /></label>
-          <button class="btn-secondary" id="btn-cargar-historial">Buscar</button>
+          <button class="btn-secondary btn-buscar" id="btn-cargar-historial">Buscar</button>
         </div>
-        <table class="data-table">
+        <table class="data-table tabla-tarjetas tabla-historial">
           <thead>
             <tr>
               <th>Fecha</th>
@@ -410,7 +437,7 @@
       </div>
 
       <div class="table-container">
-        <table class="data-table">
+        <table class="data-table tabla-tarjetas tabla-categorias">
           <thead>
             <tr>
               <th>Categoría</th>
