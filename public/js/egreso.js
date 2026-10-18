@@ -82,23 +82,38 @@ inputTexto?.addEventListener('input', () => {
   listaAC.innerHTML = filtrados.map(i => {
     const critico = i.estado_critico;
     const thumb   = i.imagen_url
-      ? `<img src="${i.imagen_url}" class="ac-thumbnail" alt="" />`
+      ? `<img src="${esc(i.imagen_url)}" class="ac-thumbnail" alt="" width="40" height="40" loading="lazy" decoding="async" />`
       : '';
     return `
-      <li data-id="${i.id}" class="${critico ? 'critico' : ''}">
+      <li data-id="${i.id}" id="ac-op-${i.id}" role="option" aria-selected="false" class="${critico ? 'critico' : ''}">
         ${thumb}
         <span class="autocomplete-nombre">${resaltar(i.nombre, q)}
-          <small style="opacity:0.5;font-size:11px"> — ${i.tipo_nombre || ''}${atributosVisibles(i) ? ' · ' + esc(atributosVisibles(i)) : ''}</small>
+          <small class="autocomplete-sub"> — ${esc(i.tipo_nombre || '')}${atributosVisibles(i) ? ' · ' + esc(atributosVisibles(i)) : ''}</small>
         </span>
         <span class="autocomplete-stock ${critico ? 'critico' : ''}">
-          ${stockDisplay(i)}
+          ${stockDisplay(i)}${critico ? ' <span class="sr-only">(crítico)</span>' : ''}
         </span>
       </li>
     `;
   }).join('');
 
   listaAC.classList.remove('hidden');
+  inputTexto.setAttribute('aria-expanded', 'true');
 });
+
+/* Marca la opción elegida con flechas (también para el lector de pantalla). */
+function marcarOpcion(li) {
+  listaAC.querySelectorAll('li').forEach(el => {
+    el.classList.toggle('focused', el === li);
+    el.setAttribute('aria-selected', String(el === li));
+  });
+  if (li) {
+    inputTexto.setAttribute('aria-activedescendant', li.id);
+    li.scrollIntoView({ block: 'nearest' });
+  } else {
+    inputTexto.removeAttribute('aria-activedescendant');
+  }
+}
 
 // Selección de ítem de la lista — CLICK 1
 listaAC?.addEventListener('click', e => {
@@ -120,16 +135,10 @@ inputTexto?.addEventListener('keydown', e => {
 
   if (e.key === 'ArrowDown') {
     e.preventDefault();
-    focused?.classList.remove('focused');
-    const next = items[idx + 1] || items[0];
-    next?.classList.add('focused');
-    next?.scrollIntoView({ block: 'nearest' });
+    marcarOpcion(items[idx + 1] || items[0]);
   } else if (e.key === 'ArrowUp') {
     e.preventDefault();
-    focused?.classList.remove('focused');
-    const prev = items[idx - 1] || items[items.length - 1];
-    prev?.classList.add('focused');
-    prev?.scrollIntoView({ block: 'nearest' });
+    marcarOpcion(items[idx - 1] || items[items.length - 1]);
   } else if (e.key === 'Enter' && focused) {
     e.preventDefault();
     focused.click();
@@ -174,6 +183,7 @@ function seleccionarInsumo(insumo) {
   const imgRow = document.getElementById('info-imagen-row');
   if (insumo.imagen_url && imgEl && imgRow) {
     imgEl.src = insumo.imagen_url;
+    imgEl.alt = `Foto de ${insumo.nombre}`;
     imgRow.classList.remove('hidden');
   } else if (imgRow) {
     imgRow.classList.add('hidden');
@@ -196,7 +206,7 @@ function renderBotonesPresentacion(insumo) {
     ...insumo.presentaciones.map(p => ({ nombre: p.nombre, etiqueta: `${plural(p.nombre, 2)} (${num(p.factor)} ${insumo.unidad_medida})` }))];
 
   filas.innerHTML = opciones.map(o =>
-    `<button type="button" class="tela-toggle-btn" data-presentacion="${esc(o.nombre)}">${esc(o.etiqueta)}</button>`
+    `<button type="button" class="tela-toggle-btn" data-presentacion="${esc(o.nombre)}" aria-pressed="false">${esc(o.etiqueta)}</button>`
   ).join('');
   cont.classList.toggle('hidden', !insumo.presentaciones.length);
   elegirPresentacionEgreso('');
@@ -204,8 +214,10 @@ function renderBotonesPresentacion(insumo) {
 
 function elegirPresentacionEgreso(nombre) {
   presentacionEgreso = nombre;
-  document.querySelectorAll('#presentacion-botones .tela-toggle-btn').forEach(b =>
-    b.classList.toggle('tela-toggle-active', b.dataset.presentacion === nombre));
+  document.querySelectorAll('#presentacion-botones .tela-toggle-btn').forEach(b => {
+    b.classList.toggle('tela-toggle-active', b.dataset.presentacion === nombre);
+    b.setAttribute('aria-pressed', String(b.dataset.presentacion === nombre));
+  });
   badgeUnidad.textContent = nombre ? plural(nombre, 2) : (insumoSeleccionado?.unidad_medida || 'unid.');
   validarCantidad();
 }
@@ -317,6 +329,8 @@ formEgreso?.addEventListener('submit', async e => {
 function ocultarLista() {
   listaAC?.classList.add('hidden');
   listaAC?.querySelectorAll('.focused').forEach(el => el.classList.remove('focused'));
+  inputTexto?.setAttribute('aria-expanded', 'false');
+  inputTexto?.removeAttribute('aria-activedescendant');
 }
 
 function limpiarSeleccion() {
@@ -341,15 +355,23 @@ function setStep(n) {
   });
 }
 
+/* Resalta lo buscado dentro del nombre. Cada parte se escapa: el nombre viene de datos. */
 function resaltar(nombre, q) {
-  if (!q) return nombre;
+  if (!q) return esc(nombre);
   const idx = nombre.toLowerCase().indexOf(q);
-  if (idx === -1) return nombre;
+  if (idx === -1) return esc(nombre);
   return (
-    nombre.slice(0, idx) +
-    `<mark style="background:rgba(212,168,83,0.25);color:inherit;border-radius:2px">${nombre.slice(idx, idx + q.length)}</mark>` +
-    nombre.slice(idx + q.length)
+    esc(nombre.slice(0, idx)) +
+    `<mark class="ac-resaltado">${esc(nombre.slice(idx, idx + q.length))}</mark>` +
+    esc(nombre.slice(idx + q.length))
   );
+}
+
+// Un mensaje nuevo no se esconde por el temporizador del anterior.
+let ocultarResultado = null;
+function programarOcultar() {
+  clearTimeout(ocultarResultado);
+  ocultarResultado = setTimeout(() => divResultado.classList.add('hidden'), 6000);
 }
 
 function mostrarOk(data) {
@@ -367,19 +389,20 @@ function mostrarOk(data) {
   if (data.estado_critico) {
     const alertDiv = document.createElement('div');
     alertDiv.className = 'resultado critico-alert';
-    alertDiv.innerHTML = `⚠ Stock crítico detectado en <strong>${data.insumo}</strong>. Se envió notificación a Dirección.`;
+    alertDiv.setAttribute('role', 'status');
+    alertDiv.innerHTML = `⚠ Stock crítico detectado en <strong>${esc(data.insumo)}</strong>. Se envió notificación a Dirección.`;
     divResultado.insertAdjacentElement('afterend', alertDiv);
     setTimeout(() => alertDiv.remove(), 8000);
   }
 
-  setTimeout(() => divResultado.classList.add('hidden'), 6000);
+  programarOcultar();
 }
 
 function mostrarError(msg) {
   divResultado.className   = 'resultado error';
   divResultado.textContent = `✕ ${msg}`;
   divResultado.classList.remove('hidden');
-  setTimeout(() => divResultado.classList.add('hidden'), 6000);
+  programarOcultar();
 }
 
 function resetForm() {

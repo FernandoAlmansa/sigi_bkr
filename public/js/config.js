@@ -22,9 +22,7 @@ const API = location.hostname.endsWith('github.io')
     aviso = document.createElement('div');
     aviso.textContent = 'Iniciando el servidor… puede tardar hasta un minuto. No cierres la página.';
     aviso.setAttribute('role', 'status');
-    aviso.style.cssText = 'position:fixed;left:50%;bottom:var(--aviso-bottom,16px);transform:translateX(-50%);z-index:9999;'
-      + 'background:#1f2937;color:#fff;padding:10px 16px;border-radius:8px;font:14px system-ui,sans-serif;'
-      + 'box-shadow:0 4px 12px rgba(0,0,0,.25);max-width:calc(100% - 32px);text-align:center';
+    aviso.className = 'aviso-arranque'; // estilos en styles.css
     document.body.appendChild(aviso);
   }, 2500);
 

@@ -3,7 +3,7 @@
    Estética: Boutique luminoso — paleta Bikinis Río (rosa/blanco)
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
+/* Las tipografías se cargan con <link> en index.html (más rápido que @import). */
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -16,28 +16,94 @@
   --bg-card:    #FFFFFF;
   --bg-hover:   #FFF1F6;
 
+  /* pink y pink-dark: bordes, íconos y detalles. Para texto o fondo de botón
+     con letra blanca se usa pink-deep, que se lee bien (contraste ≥ 4.5:1). */
   --pink:       #F2A6C4;
   --pink-dark:  #E37FA8;
   --pink-soft:  #FCE4ED;
-  --pink-deep:  #C2548A;
+  --pink-deep:  #AD4279;
+  --pink-deeper:#9A3A69;
 
   --border:        #F6D9E5;
   --border-strong: #F0BCD3;
 
   --text:       #4A2F3A;
-  --text-muted: #B98AA0;
-  --text-dim:   #E0BBCB;
+  --text-muted: #865D70;
+  --text-dim:   #96697F;
 
   --danger:     #E8607A;
   --danger-bg:  #FDEAEE;
-  --danger-text:#C73A56;
+  --danger-text:#B83250;
+  --danger-strong:#9E2B45;
 
   --success:    #6BBF9C;
   --success-bg: #E9F7F0;
-  --success-text:#3E9275;
+  --success-text:#2F7A60;
 
   --warning:    #F2A6C4;
   --warning-bg: #FCE4ED;
+
+  --ajuste:      #E8B44C;
+  --ajuste-bg:   #FFF6E5;
+  --ajuste-text: #9A6400;
+
+  --focus-ring: 0 0 0 3px var(--pink-soft), 0 0 0 5px var(--pink-deep);
+
+  /* Rellenos con letra blanca (botones, pestaña y filtro activos) */
+  --primary:       #AD4279;
+  --primary-hover: #9A3A69;
+  --on-primary:    #FFFFFF;
+  --danger-btn:    #B83250;
+
+  /* Sombras y fondos semitransparentes */
+  --sombra:       242,166,196;  /* rgb, se usa como rgba(var(--sombra), .1) */
+  --sombra-modal: rgba(74,47,58,.2);
+  --overlay:      rgba(74,47,58,.32);
+  --tabbar-bg:    rgba(255,255,255,.96);
+  --aviso-bg:     #4A2F3A;
+  color-scheme: light;
+}
+
+/* ── MODO OSCURO ──
+   Sólo cambian los tonos: el rosa sigue siendo el color de la marca.
+   Se activa con el botón de la barra (o según el teléfono, si nunca se tocó). */
+:root[data-theme="dark"] {
+  --bg:         #1A1216;
+  --bg-surface: #241920;
+  --bg-card:    #241920;
+  --bg-hover:   #2E2028;
+
+  --pink-soft:  #3A2430;
+  --pink-deep:  #F4A7C8;
+  --pink-deeper:#F9C6DB;
+
+  --border:        #3A2A32;
+  --border-strong: #55394A;
+
+  --text:       #F6E9EF;
+  --text-muted: #C7A2B4;
+  --text-dim:   #A88496;
+
+  --danger-bg:  #3A1A23;
+  --danger-text:#FF8DA3;
+  --danger-btn: #C93F5E;
+  --danger-strong:#B83250;
+
+  --success:    #4FA383;
+  --success-bg: #15302A;
+  --success-text:#7DD3AF;
+
+  --warning-bg: #3A2430;
+
+  --ajuste:      #B8892F;
+  --ajuste-bg:   #33270F;
+  --ajuste-text: #F0C36B;
+
+  --sombra:       0,0,0;
+  --sombra-modal: rgba(0,0,0,.5);
+  --overlay:      rgba(0,0,0,.6);
+  --tabbar-bg:    rgba(36,25,32,.94);
+  color-scheme: dark;
 
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -52,6 +118,42 @@ html, body {
   font-size: 15px;
   line-height: 1.6;
   min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* ── FOCO Y TOQUE ──
+   Anillo de foco visible al navegar con teclado (no aparece al tocar o hacer clic). */
+:where(a, button, [tabindex]):focus-visible {
+  outline: 2px solid var(--pink-deep);
+  outline-offset: 2px;
+}
+.page-header h1:focus { outline: none; }
+
+/* Sin la demora de doble toque en celulares viejos. */
+a, button, input, select, label, .autocomplete-list li { touch-action: manipulation; }
+
+/* Íconos SVG de línea (mismo trazo que la barra inferior). */
+.ico {
+  width: 1em;
+  height: 1em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+  vertical-align: -0.125em;
+}
+
+/* Oculto a la vista pero accesible (teclado y lector de pantalla). */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* ── NAVBAR ── */
@@ -66,7 +168,7 @@ html, body {
   gap: 0;
   z-index: 100;
   padding: 0 24px;
-  box-shadow: 0 1px 12px rgba(242,166,196,0.08);
+  box-shadow: 0 1px 12px rgba(var(--sombra),0.08);
 }
 
 .nav-brand {
@@ -113,7 +215,7 @@ html, body {
 }
 
 .nav-link:hover { color: var(--pink-deep); background: var(--pink-soft); }
-.nav-link.active { color: #fff; background: var(--pink-dark); }
+.nav-link.active { color: var(--on-primary); background: var(--primary); }
 
 .alert-badge {
   display: flex;
@@ -139,6 +241,33 @@ html, body {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
 }
+
+.nav-acciones {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btn-tema {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--bg-surface);
+  color: var(--pink-deep);
+  font-size: 18px;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.btn-tema:hover { border-color: var(--pink-dark); background: var(--pink-soft); }
+/* Muestra el ícono del modo al que se pasa: luna en claro, sol en oscuro. */
+.btn-tema .ico-sol { display: none; }
+:root[data-theme="dark"] .btn-tema .ico-sol { display: block; }
+:root[data-theme="dark"] .btn-tema .ico-luna { display: none; }
 
 .hidden { display: none !important; }
 
@@ -195,8 +324,9 @@ html, body {
 }
 
 .alert-icon {
-  font-size: 12px;
-  color: var(--danger);
+  display: inline-flex;
+  font-size: 16px;
+  color: var(--danger-text);
 }
 
 .alert-list {
@@ -206,7 +336,7 @@ html, body {
 }
 
 .alert-item {
-  background: #fff;
+  background: var(--bg-surface);
   border: 1px solid var(--danger);
   border-radius: var(--radius-md);
   padding: 10px 14px;
@@ -220,7 +350,7 @@ html, body {
 
 .alert-item-stock {
   font-size: 12px;
-  color: var(--danger);
+  color: var(--danger-text);
   margin-top: 2px;
 }
 
@@ -255,8 +385,8 @@ html, body {
   font-weight: 500;
 }
 
-.stat-card.stat-danger .stat-label { color: var(--danger-text); opacity: 0.8; }
-.stat-card.stat-ok .stat-label { color: var(--success-text); opacity: 0.8; }
+.stat-card.stat-danger .stat-label { color: var(--danger-text); }
+.stat-card.stat-ok .stat-label { color: var(--success-text); }
 
 .stat-value {
   font-family: var(--font-display);
@@ -264,6 +394,7 @@ html, body {
   font-weight: 700;
   color: var(--pink-deep);
   line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .stat-card.stat-danger .stat-value { color: var(--danger-text); }
@@ -296,7 +427,7 @@ html, body {
   padding: 6px 14px;
   border: 1.5px solid var(--border-strong);
   border-radius: 20px;
-  background: #fff;
+  background: var(--bg-surface);
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 500;
@@ -310,15 +441,16 @@ html, body {
   background: var(--pink-soft);
 }
 .filtro-btn.filtro-btn-active {
-  background: var(--pink-dark);
-  border-color: var(--pink-dark);
-  color: #fff;
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
 }
 .filtro-btn.filtro-btn-warn.filtro-btn-active {
-  background: #c0392b;
-  border-color: #c0392b;
-  color: #fff;
+  background: var(--danger-btn);
+  border-color: var(--danger-btn);
+  color: var(--on-primary);
 }
+.filtro-btn .ico { margin-right: 2px; }
 
 .filtro-orden {
   width: auto;
@@ -392,9 +524,9 @@ html, body {
 }
 
 .badge-ajuste {
-  background: #FFF6E5;
-  color: #9A6400;
-  border: 1px solid #E8B44C;
+  background: var(--ajuste-bg);
+  color: var(--ajuste-text);
+  border: 1px solid var(--ajuste);
 }
 
 .badge-egreso {
@@ -406,6 +538,7 @@ html, body {
 .stock-value {
   font-size: 13px;
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 
 .stock-critico { color: var(--danger-text); }
@@ -418,7 +551,7 @@ html, body {
   border-radius: var(--radius-lg);
   padding: 28px 32px;
   max-width: 600px;
-  box-shadow: 0 4px 24px rgba(242,166,196,0.10);
+  box-shadow: 0 4px 24px rgba(var(--sombra),0.10);
 }
 
 /* ── STEPS INDICATOR ── */
@@ -451,13 +584,13 @@ html, body {
   font-weight: 600;
   color: var(--text-muted);
   flex-shrink: 0;
-  background: #fff;
+  background: var(--bg-surface);
 }
 
 .step.active .step-num {
-  border-color: var(--pink-dark);
-  color: #fff;
-  background: var(--pink-dark);
+  border-color: var(--primary);
+  color: var(--on-primary);
+  background: var(--primary);
 }
 
 .step.done .step-num {
@@ -520,12 +653,13 @@ html, body {
   font-size: 15px;
   padding: 10px 14px;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
   appearance: none;
 }
 
 .form-control:focus {
-  border-color: var(--pink-dark);
+  border-color: var(--pink-deep);
+  box-shadow: 0 0 0 3px var(--pink-soft);
 }
 
 .form-control::placeholder { color: var(--text-dim); }
@@ -546,14 +680,14 @@ html, body {
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  background: #fff;
+  background: var(--bg-surface);
   border: 1.5px solid var(--border-strong);
   border-radius: var(--radius-md);
   list-style: none;
   z-index: 200;
   max-height: 260px;
   overflow-y: auto;
-  box-shadow: 0 8px 24px rgba(242,166,196,0.25);
+  box-shadow: 0 8px 24px rgba(var(--sombra),0.25);
 }
 
 .autocomplete-list li {
@@ -574,9 +708,12 @@ html, body {
 .autocomplete-stock {
   font-size: 12px;
   color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
-.autocomplete-stock.critico { color: var(--danger); }
+.autocomplete-stock.critico { color: var(--danger-text); }
+.autocomplete-sub { font-size: 11px; color: var(--text-muted); }
+.ac-resaltado { background: var(--pink-soft); color: inherit; border-radius: 2px; padding: 0 1px; }
 
 /* ── INSUMO INFO BOX ── */
 .insumo-info {
@@ -601,13 +738,13 @@ html, body {
   color: var(--pink-deep);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  opacity: 0.75;
 }
 
 .info-value {
   font-size: 14px;
   font-weight: 600;
   color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 
 .info-value.critico { color: var(--danger-text); }
@@ -649,8 +786,8 @@ html, body {
 
 /* ── BUTTONS ── */
 .btn-primary {
-  background: var(--pink-dark);
-  color: #fff;
+  background: var(--primary);
+  color: var(--on-primary);
   border: none;
   border-radius: 999px;
   font-family: var(--font-body);
@@ -662,7 +799,7 @@ html, body {
   letter-spacing: 0.02em;
 }
 
-.btn-primary:hover:not(:disabled) { background: var(--pink-deep); }
+.btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
 .btn-primary:active:not(:disabled) { transform: scale(0.98); }
 .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
 
@@ -674,7 +811,7 @@ html, body {
 }
 
 .btn-secondary {
-  background: #fff;
+  background: var(--bg-surface);
   color: var(--pink-deep);
   border: 1.5px solid var(--border-strong);
   border-radius: 999px;
@@ -686,7 +823,11 @@ html, body {
   transition: border-color 0.15s, background 0.15s;
 }
 
-.btn-secondary:hover { border-color: var(--pink-dark); background: var(--pink-soft); }
+.btn-secondary:hover:not(:disabled) { border-color: var(--pink-dark); background: var(--pink-soft); }
+.btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-secondary:active:not(:disabled) { transform: scale(0.98); }
+/* Mientras se guarda (el botón dice "Guardando...") */
+[aria-busy="true"] { cursor: progress !important; }
 
 /* ── RESULTADO ── */
 .resultado {
@@ -729,7 +870,7 @@ html, body {
   padding: 10px 14px;
   border: 1.5px solid var(--border-strong);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--bg-surface);
   color: var(--text-muted);
   font-family: var(--font-body);
   font-size: 13px;
@@ -749,9 +890,9 @@ html, body {
 }
 
 .tela-toggle-btn.tela-toggle-active {
-  background: var(--pink-dark);
-  border-color: var(--pink-dark);
-  color: #fff;
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
 }
 
 .tela-toggle-sub {
@@ -765,7 +906,7 @@ html, body {
 
 .tela-toggle-btn.tela-toggle-active .tela-toggle-sub {
   background: rgba(255,255,255,0.25);
-  color: #fff;
+  color: var(--on-primary);
 }
 
 .tela-nota {
@@ -780,12 +921,19 @@ html, body {
   border: 1.5px solid var(--border);
   border-radius: var(--radius-md);
   color: var(--text-muted);
-  font-size: 15px;
-  padding: 4px 9px;
+  font-size: 16px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   transition: border-color .15s, color .15s, background .15s;
   line-height: 1;
+  vertical-align: middle;
 }
+.btn-borrar:hover:not(:disabled) { border-color: var(--danger); color: var(--danger-text); background: var(--danger-bg); }
 .btn-editar:hover {
   border-color: var(--pink-dark);
   color: var(--pink-deep);
@@ -796,7 +944,7 @@ html, body {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,.35);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -806,11 +954,13 @@ html, body {
 .modal-card {
   background: var(--bg-card);
   border-radius: var(--radius-lg);
-  box-shadow: 0 8px 32px rgba(0,0,0,.18);
+  box-shadow: 0 8px 32px var(--sombra-modal);
   width: 100%;
   max-width: 520px;
   max-height: 90vh;
+  max-height: 90dvh;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 28px;
 }
 .modal-header {
@@ -827,10 +977,15 @@ html, body {
 .modal-close {
   background: none;
   border: none;
-  font-size: 18px;
+  font-size: 20px;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 4px 8px;
+  min-width: 40px;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border-radius: var(--radius-md);
   transition: background .15s, color .15s;
 }
@@ -903,10 +1058,15 @@ html, body {
   gap: 12px;
   flex-wrap: wrap;
 }
+/* Oculto a la vista pero enfocable con teclado (con display:none no se podía). */
 .imagen-file-input {
-  display: none;
+  position: absolute;
+  width: 1px; height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 .imagen-upload-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -917,6 +1077,10 @@ html, body {
   font-size: 13px;
   cursor: pointer;
   transition: border-color .18s, color .18s, background .18s;
+}
+.imagen-upload-btn:focus-within {
+  outline: 2px solid var(--pink-deep);
+  outline-offset: 2px;
 }
 .imagen-upload-btn:hover {
   border-color: var(--pink-dark);
@@ -929,6 +1093,24 @@ html, body {
   object-fit: cover;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
+}
+
+/* ── AVISO "Iniciando el servidor…" (config.js) ── */
+.aviso-arranque {
+  position: fixed;
+  left: 50%;
+  bottom: var(--aviso-bottom, 16px);
+  transform: translateX(-50%);
+  z-index: 9999;
+  background: var(--aviso-bg);
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 14px;
+  box-shadow: 0 4px 16px var(--sombra-modal);
+  max-width: calc(100% - 32px);
+  text-align: center;
 }
 
 /* ── SCROLLBAR ── */
@@ -970,7 +1152,13 @@ html, body {
   border: 1.5px solid var(--border);
   border-radius: var(--radius-md);
   color: var(--text-muted);
-  padding: 6px 9px;
+  font-size: 15px;
+  min-width: 34px;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   cursor: pointer;
   line-height: 1;
 }
@@ -1041,7 +1229,7 @@ input[readonly].form-control { background: var(--bg); color: var(--text-muted); 
 #ajuste-campos { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
 #ajuste-campos.hidden { display: none !important; }
 #ajuste-campos .modal-actions { margin-top: 0; }
-.campo-hint-aviso { color: #9A6400; }
+.campo-hint-aviso { color: var(--ajuste-text); }
 
 .filtro-historial { width: auto; min-width: 230px; flex: 0 0 auto; }
 .filtro-fecha { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
@@ -1077,8 +1265,8 @@ input[readonly].form-control { background: var(--bg); color: var(--text-muted); 
 .dialogo-campo { margin-top: 4px; }
 .dialogo-acciones { flex-wrap: wrap; }
 .btn-peligro {
-  background: var(--danger);
-  color: #fff;
+  background: var(--danger-btn);
+  color: var(--on-primary);
   border: none;
   border-radius: 999px;
   font-family: var(--font-body);
@@ -1088,7 +1276,7 @@ input[readonly].form-control { background: var(--bg); color: var(--text-muted); 
   cursor: pointer;
   transition: background .15s;
 }
-.btn-peligro:hover { background: var(--danger-text); }
+.btn-peligro:hover { background: var(--danger-strong); }
 @keyframes dialogo-fondo { from { opacity: 0; } }
 @keyframes dialogo-entrada { from { opacity: 0; transform: translateY(8px) scale(.98); } }
 @media (max-width: 480px) {
@@ -1096,7 +1284,7 @@ input[readonly].form-control { background: var(--bg); color: var(--text-muted); 
 }
 .dialogo-acciones .btn-secondary { font-size: 14px; padding: 11px 20px; }
 .dialogo-acciones button:focus { outline: none; }
-.dialogo-acciones button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--pink-soft), 0 0 0 5px var(--pink); }
+.dialogo-acciones button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* ============================================================
    BARRA DE HERRAMIENTAS DEL DASHBOARD
@@ -1136,7 +1324,7 @@ input[readonly].form-control { background: var(--bg); color: var(--text-muted); 
   width: 100%;
   height: 42px;
   padding: 0 14px 0 40px;
-  background: #fff;
+  background: var(--bg-surface);
   border: 1.5px solid var(--border-strong);
   border-radius: 999px;
   font-family: var(--font-body);
@@ -1146,7 +1334,7 @@ input[readonly].form-control { background: var(--bg); color: var(--text-muted); 
   transition: border-color .15s, box-shadow .15s;
 }
 .buscador-input::placeholder { color: var(--text-muted); opacity: .8; }
-.buscador-input:focus { border-color: var(--pink-dark); box-shadow: 0 0 0 3px var(--pink-soft); }
+.buscador-input:focus { border-color: var(--pink-deep); box-shadow: 0 0 0 3px var(--pink-soft); }
 .buscador-input::-webkit-search-cancel-button { cursor: pointer; }
 
 .toolbar-select {
@@ -1154,7 +1342,7 @@ input[readonly].form-control { background: var(--bg); color: var(--text-muted); 
   height: 42px;
   padding-top: 0;
   padding-bottom: 0;
-  background-color: #fff;
+  background-color: var(--bg-surface);
   border-color: var(--border-strong);
   border-radius: 999px;
   font-size: 14px;
@@ -1208,16 +1396,16 @@ input[readonly].form-control { background: var(--bg); color: var(--text-muted); 
   position: fixed;
   inset: 0;
   z-index: 140;
-  background: rgba(74,47,58,.28);
+  background: var(--overlay);
   align-items: flex-end;
   animation: dialogo-fondo .15s ease-out;
 }
 .hoja-card {
   width: 100%;
-  background: #fff;
+  background: var(--bg-surface);
   border-radius: 22px 22px 0 0;
   padding: 10px 14px calc(var(--tabbar-h) + 14px + env(safe-area-inset-bottom));
-  box-shadow: 0 -8px 30px rgba(74,47,58,.12);
+  box-shadow: 0 -8px 30px rgba(var(--sombra),.12);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1244,6 +1432,7 @@ input[readonly].form-control { background: var(--bg); color: var(--text-muted); 
 .hoja-link strong { font-size: 15px; color: var(--text); font-weight: 600; }
 .hoja-link small { font-size: 12px; color: var(--text-muted); }
 .hoja-link:active, .hoja-link.active { background: var(--pink-soft); }
+.hoja-link:focus-visible { outline-offset: -2px; }
 @keyframes hoja-sube { from { transform: translateY(30px); opacity: 0; } }
 
 /* ============================================================
@@ -1265,11 +1454,12 @@ input[readonly].form-control { background: var(--bg); color: var(--text-muted); 
     z-index: 150;
     gap: 4px;
     padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
-    background: rgba(255,255,255,.96);
-    backdrop-filter: saturate(1.4) blur(10px);
-    -webkit-backdrop-filter: saturate(1.4) blur(10px);
+    /* Sin backdrop-filter (desenfoque): en celulares obliga a recalcular el
+       blur sobre toda la página en cada cambio de sección y se ve un instante
+       en blanco. El fondo ya es casi opaco, así que se ve igual. */
+    background: var(--tabbar-bg);
     border-top: 1px solid var(--border);
-    box-shadow: 0 -4px 18px rgba(242,166,196,.12);
+    box-shadow: 0 -4px 18px rgba(var(--sombra),.12);
   }
   .tab-mas { display: none; }
   .hoja:not(.hidden) { display: flex; }
@@ -1284,6 +1474,14 @@ input[readonly].form-control { background: var(--bg); color: var(--text-muted); 
 
   .form-card { max-width: none; }
   #page-categorias .form-card { max-width: none; }
+
+  /* iOS agranda la pantalla al tocar un campo con letra de menos de 16px. */
+  .form-control,
+  .editor-fila .form-control,
+  .buscador-input,
+  .toolbar-select,
+  .filtro-fecha .form-control { font-size: 16px; }
+  .cantidad-input { font-size: 22px !important; }
 
   /* ── Tablas → tarjetas ── */
   .table-container { background: transparent; border: none; border-radius: 0; overflow: visible; }
@@ -1305,8 +1503,11 @@ input[readonly].form-control { background: var(--bg); color: var(--text-muted); 
     padding: 14px 16px;
     gap: 6px 12px;
     align-items: center;
-    box-shadow: 0 2px 10px rgba(242,166,196,.08);
+    box-shadow: 0 2px 10px rgba(var(--sombra),.08);
   }
+  /* El celular sólo dibuja las tarjetas que están en pantalla (o cerca).
+     Con ~100 insumos alivia mucho el cambio de sección. */
+  .tabla-tarjetas tbody > tr { content-visibility: auto; contain-intrinsic-size: auto 150px; }
   .tabla-tarjetas td { display: block; padding: 0; border: none !important; background: none !important; min-width: 0; }
   .tabla-tarjetas tbody tr:hover td { background: none; }
   .tabla-tarjetas td.loading-row { grid-column: 1 / -1; padding: 28px 8px !important; }
@@ -1314,7 +1515,7 @@ input[readonly].form-control { background: var(--bg); color: var(--text-muted); 
   .tabla-tarjetas td[data-label]::before {
     content: attr(data-label);
     display: block;
-    font-size: 10.5px;
+    font-size: 11px;
     font-weight: 600;
     letter-spacing: .06em;
     text-transform: uppercase;
@@ -1331,12 +1532,12 @@ input[readonly].form-control { background: var(--bg); color: var(--text-muted); 
       "stock     minimo    accion";
     row-gap: 0;
   }
-  #tabla-insumos tr.fila-critica { border-color: var(--danger); box-shadow: inset 4px 0 0 var(--danger), 0 2px 10px rgba(232,96,122,.08); }
+  #tabla-insumos tr.fila-critica { border-color: var(--danger); box-shadow: inset 4px 0 0 var(--danger), 0 2px 10px rgba(var(--sombra),.08); }
   #tabla-insumos .c-nombre    { grid-area: nombre; font-size: 15px; font-weight: 600; line-height: 1.3; }
   #tabla-insumos .c-nombre .attr-sub { font-weight: 400; }
   #tabla-insumos .c-categoria { grid-area: categoria; font-size: 12px; color: var(--text-muted); margin-top: 2px; }
   #tabla-insumos .c-estado    { grid-area: estado; justify-self: end; align-self: start; }
-  #tabla-insumos .c-estado .badge { font-size: 10px; padding: 3px 9px; }
+  #tabla-insumos .c-estado .badge { font-size: 11px; padding: 3px 9px; }
   #tabla-insumos .c-stock,
   #tabla-insumos .c-minimo,
   #tabla-insumos .c-accion    { margin-top: 10px; padding-top: 10px !important; border-top: 1px dashed var(--border) !important; align-self: stretch; }
@@ -1346,7 +1547,7 @@ input[readonly].form-control { background: var(--bg); color: var(--text-muted); 
   #tabla-insumos .c-unidad    { display: none; }
   #tabla-insumos .cant-pres   { display: block; font-size: 12px; font-weight: 500; color: var(--text-muted); }
   #tabla-insumos .table-thumbnail { width: 44px; height: 44px; }
-  #tabla-insumos .btn-editar  { width: 40px; height: 40px; padding: 0; font-size: 16px; display: inline-flex; align-items: center; justify-content: center; }
+  #tabla-insumos .btn-editar  { width: 44px; height: 44px; padding: 0; font-size: 18px; }
 
   /* Historial */
   .tabla-historial tr {
@@ -1367,10 +1568,12 @@ input[readonly].form-control { background: var(--bg); color: var(--text-muted); 
   .tabla-historial .c-usuario.vacio { display: none; }
   .tabla-historial .c-usuario::before { display: inline !important; margin-right: 6px; }
 
-  .toolbar-historial { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  /* minmax(0, …): con letra de 16px los campos de fecha no empujan la tarjeta */
+  .toolbar-historial { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+  .toolbar-historial .filtro-fecha { min-width: 0; }
   .toolbar-historial .filtro-historial { grid-column: 1 / -1; width: 100%; min-width: 0; }
-  .filtro-fecha { flex-direction: column; align-items: stretch; gap: 2px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; font-size: 10.5px; }
-  .filtro-fecha .form-control { width: 100%; min-width: 0; font-size: 14px; }
+  .filtro-fecha { flex-direction: column; align-items: stretch; gap: 2px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; font-size: 11px; }
+  .filtro-fecha .form-control { width: 100%; min-width: 0; }
   .toolbar-historial .btn-buscar { grid-column: 1 / -1; padding: 11px; font-size: 14px; }
   .historial-pie { padding: 14px 4px 0; flex-wrap: wrap; gap: 8px; }
 
@@ -1402,7 +1605,7 @@ input[readonly].form-control { background: var(--bg); color: var(--text-muted); 
   /* Resumen: tres números en una fila en vez de tres tarjetas grandes */
   .stats-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
   .stat-card { padding: 10px 12px; gap: 4px; border-radius: 14px; justify-content: space-between; }
-  .stat-label { font-size: 9.5px; letter-spacing: .04em; line-height: 1.25; }
+  .stat-label { font-size: 10.5px; letter-spacing: .03em; line-height: 1.25; }
   .stat-value { font-size: 28px; }
 
   /* Críticos: lista compacta (nombre a la izquierda, stock a la derecha) */
@@ -1412,7 +1615,7 @@ input[readonly].form-control { background: var(--bg); color: var(--text-muted); 
     display: flex;
     flex-direction: column;
     gap: 0;
-    background: #fff;
+    background: var(--bg-surface);
     border: 1px solid var(--danger);
     border-radius: var(--radius-md);
     overflow: hidden;
@@ -1438,7 +1641,8 @@ input[readonly].form-control { background: var(--bg); color: var(--text-muted); 
   .btn-ver-criticos {
     display: block;
     width: 100%;
-    margin-top: 8px;
+    min-height: 44px;
+    margin-top: 4px;
     padding: 8px;
     background: none;
     border: none;
@@ -1457,7 +1661,7 @@ input[readonly].form-control { background: var(--bg); color: var(--text-muted); 
       "estado    estado";
     gap: 8px;
   }
-  .toolbar-select { font-size: 13px; padding-left: 12px; padding-right: 30px; background-position: right 10px center; }
+  .toolbar-select { padding-left: 12px; padding-right: 30px; background-position: right 10px center; }
   .filtro-estado-btns {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -1466,13 +1670,15 @@ input[readonly].form-control { background: var(--bg); color: var(--text-muted); 
     padding: 3px;
     gap: 3px;
   }
-  .filtro-btn { border: none; background: transparent; padding: 8px 6px; font-size: 13px; }
-  .filtro-btn.filtro-btn-active { box-shadow: 0 1px 4px rgba(194,84,138,.25); }
+  .filtro-btn { border: none; background: transparent; padding: 8px 6px; font-size: 13px; min-height: 40px; }
+  .filtro-btn.filtro-btn-active { box-shadow: 0 1px 4px rgba(var(--sombra),.25); }
 
   .tabla-tarjetas tbody { grid-template-columns: 1fr; gap: 10px; }
   .tabla-tarjetas tr { padding: 12px 14px; }
 
   .form-card { padding: 20px 16px; }
+  .modal-overlay { padding: 10px; }
+  .modal-card { padding: 20px 16px; }
   .form-row { grid-template-columns: 1fr; gap: 0; }
   .steps { display: none; }
 
@@ -1481,4 +1687,38 @@ input[readonly].form-control { background: var(--bg); color: var(--text-muted); 
 
 @media (hover: none) {
   .data-table tbody tr:hover td { background: none; }
+}
+
+/* ============================================================
+   PANTALLAS TÁCTILES: botones de al menos 44 px para el dedo
+   (en la compu quedan más compactos)
+   ============================================================ */
+@media (pointer: coarse) {
+  .btn-tema { width: 44px; height: 44px; }
+  .btn-editar,
+  .unidad-item .btn-editar { min-width: 44px; min-height: 44px; padding: 0 10px; }
+  .td-acciones .btn-editar + .btn-editar { margin-left: 8px; }
+  .editor-quitar { min-width: 44px; min-height: 44px; }
+  .modal-close { min-width: 44px; min-height: 44px; }
+  .btn-link { min-height: 44px; padding-top: 0; display: inline-flex; align-items: center; }
+  .ajuste-box .btn-link { text-align: left; }
+  .btn-secondary { min-height: 44px; }
+  .filtro-btn { min-height: 40px; }
+  .tela-toggle-btn { min-height: 44px; }
+  .imagen-upload-btn { min-height: 44px; }
+  .campo-oblig { min-height: 44px; }
+  .autocomplete-list li { min-height: 52px; }
+  .unidad-item { padding: 2px 4px 2px 14px; }
+}
+
+/* ============================================================
+   MENOS MOVIMIENTO (si el teléfono o la compu lo tienen activado)
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

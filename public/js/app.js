@@ -5,6 +5,13 @@
 
 // API se define en js/config.js
 
+/* ── Íconos SVG (mismo trazo que la barra inferior; reemplazan ✎ 🗑 ✕) ── */
+const ICONO = {
+  editar: '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z"/><path d="m14 8 3 3"/></svg>',
+  borrar: '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M5.5 7l1 12a2 2 0 0 0 2 1.8h7a2 2 0 0 0 2-1.8l1-12M9 7V4.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V7"/></svg>',
+  cerrar: '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+};
+
 /* ── Unidades de medida (catálogo controlado: GET /api/unidades) ── */
 let unidadesCache = [];
 
@@ -59,22 +66,23 @@ function renderCamposAtributos(idTipo, containerId, valores = {}) {
   if (!campos.length) { container.innerHTML = ''; return; }
 
   container.innerHTML = '<div class="form-row form-row-wrap">' +
-    campos.map(c => {
+    campos.map((c, n) => {
+      const id       = `${containerId}-${n}`;
       const val      = valores?.[c.clave] ?? '';
       const labelSfx = c.obligatorio ? '' : ' <span class="optional">(opcional)</span>';
       const req      = c.obligatorio ? 'required' : '';
       let control;
       if (c.tipo === 'opciones') {
         control = `
-          <select class="form-control form-select atributo-campo" data-key="${esc(c.clave)}" ${req}>
+          <select id="${id}" class="form-control form-select atributo-campo" data-key="${esc(c.clave)}" ${req}>
             <option value="">— Seleccionar —</option>
             ${c.opciones.map(o => `<option value="${esc(o)}"${val === o ? ' selected' : ''}>${esc(o)}</option>`).join('')}
           </select>`;
       } else {
         const tipo = c.tipo === 'numero' ? 'number" step="any' : 'text';
-        control = `<input type="${tipo}" class="form-control atributo-campo" data-key="${esc(c.clave)}" value="${esc(val)}" placeholder="${esc(c.etiqueta)}..." ${req} />`;
+        control = `<input id="${id}" type="${tipo}" class="form-control atributo-campo" data-key="${esc(c.clave)}" value="${esc(val)}" placeholder="${esc(c.etiqueta)}..." ${req} />`;
       }
-      return `<div class="form-group"><label class="form-label">${esc(c.etiqueta)}${labelSfx}</label>${control}</div>`;
+      return `<div class="form-group"><label class="form-label" for="${id}">${esc(c.etiqueta)}${labelSfx}</label>${control}</div>`;
     }).join('') + '</div>';
 }
 
@@ -176,11 +184,11 @@ function agregarFilaPresentacion(c, p = {}) {
   fila.className = 'editor-fila';
   fila.innerHTML = `
     <span class="editor-texto">1</span>
-    <input type="text" class="form-control pres-nombre" list="presentaciones-sugeridas" placeholder="rollo, paquete, caja..." maxlength="40" value="${esc(p.nombre || '')}" />
+    <input type="text" class="form-control pres-nombre" list="presentaciones-sugeridas" placeholder="rollo, paquete, caja..." maxlength="40" value="${esc(p.nombre || '')}" aria-label="Nombre de la presentación" />
     <span class="editor-texto">=</span>
-    <input type="number" class="form-control pres-factor" min="0.001" step="any" placeholder="20" value="${p.factor ?? ''}" />
+    <input type="number" class="form-control pres-factor" min="0.001" step="any" inputmode="decimal" placeholder="20" value="${p.factor ?? ''}" aria-label="Cuántas unidades base trae" />
     <span class="editor-texto pres-unidad">${esc(c.dataset.unidad || 'unid. base')}</span>
-    <button type="button" class="editor-quitar" title="Quitar">✕</button>`;
+    <button type="button" class="editor-quitar" title="Quitar" aria-label="Quitar presentación">${ICONO.cerrar}</button>`;
   fila.querySelector('.editor-quitar').addEventListener('click', () => fila.remove());
   c.querySelector('.editor-lista').appendChild(fila);
 }
@@ -223,21 +231,35 @@ let ingresoCache        = [];
 let currentDashboardTipo = null;
 let filtroEstado = 'todos';
 let filtroOrden  = 'default';
+let dashboardPintadoCon = null; // la lista con la que se dibujó la tabla por última vez
 
 /* ── NAVEGACIÓN ── */
 const pages    = document.querySelectorAll('.page');
 const navLinks = document.querySelectorAll('.nav-link');
+const PAGINAS  = [...pages].map(p => p.id.replace('page-', ''));
 
-function showPage(pageId) {
+function showPage(pageId, { enfocar = true } = {}) {
   pages.forEach(p => p.classList.remove('active'));
   // Hay links a la misma página en la barra de arriba, la de abajo (celular) y la hoja "Más".
-  navLinks.forEach(l => l.classList.toggle('active', l.dataset.page === pageId));
+  navLinks.forEach(l => {
+    const activo = l.dataset.page === pageId;
+    l.classList.toggle('active', activo);
+    if (activo) l.setAttribute('aria-current', 'page'); else l.removeAttribute('aria-current');
+  });
   document.getElementById('tab-mas')?.classList.toggle('active', ['catalogo', 'categorias'].includes(pageId));
-  cerrarHojaMas();
+  cerrarHojaMas({ devolverFoco: false });
+  if (!document.getElementById('modal-editar')?.classList.contains('hidden')) cerrarModal();
 
   const page = document.getElementById(`page-${pageId}`);
   if (page) page.classList.add('active');
   window.scrollTo(0, 0);
+
+  // Lector de pantalla y teclado: el foco pasa al título de la sección nueva.
+  const titulo = page?.querySelector('h1');
+  if (enfocar && titulo) {
+    titulo.setAttribute('tabindex', '-1');
+    titulo.focus({ preventScroll: true });
+  }
 
   // Acciones al cambiar de página
   if (pageId === 'dashboard') inicializarDashboard();
@@ -248,29 +270,98 @@ function showPage(pageId) {
   if (pageId === 'categorias') cargarPaginaCategorias();
 }
 
+/* Cada sección tiene su dirección (#egreso, #historial...): el botón "atrás"
+   del celular vuelve a la sección anterior en vez de cerrar la app, y al
+   recargar se queda en la misma sección. */
+function paginaDelHash() {
+  const p = location.hash.slice(1);
+  return PAGINAS.includes(p) ? p : 'dashboard';
+}
+
 navLinks.forEach(link => {
   link.addEventListener('click', e => {
     e.preventDefault();
-    showPage(link.dataset.page);
+    const id = link.dataset.page;
+    if (location.hash.slice(1) === id) showPage(id);
+    else location.hash = id; // dispara hashchange → showPage
   });
 });
+window.addEventListener('hashchange', () => showPage(paginaDelHash()));
 
 /* Hoja "Más" del celular: Catálogo y Categorías */
 const hojaMas = document.getElementById('hoja-mas');
 const tabMas  = document.getElementById('tab-mas');
-function cerrarHojaMas() {
+function cerrarHojaMas({ devolverFoco = true } = {}) {
+  const estabaAbierta = hojaMas && !hojaMas.classList.contains('hidden');
   hojaMas?.classList.add('hidden');
   hojaMas?.setAttribute('aria-hidden', 'true');
   tabMas?.setAttribute('aria-expanded', 'false');
+  if (estabaAbierta && devolverFoco) tabMas?.focus();
 }
 tabMas?.addEventListener('click', () => {
   const abrir = hojaMas.classList.contains('hidden');
-  hojaMas.classList.toggle('hidden', !abrir);
-  hojaMas.setAttribute('aria-hidden', String(!abrir));
-  tabMas.setAttribute('aria-expanded', String(abrir));
+  if (!abrir) return cerrarHojaMas();
+  hojaMas.classList.remove('hidden');
+  hojaMas.setAttribute('aria-hidden', 'false');
+  tabMas.setAttribute('aria-expanded', 'true');
+  hojaMas.querySelector('.hoja-link')?.focus({ preventScroll: true });
 });
 hojaMas?.addEventListener('click', e => { if (e.target === hojaMas) cerrarHojaMas(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarHojaMas(); });
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (!document.getElementById('modal-editar')?.classList.contains('hidden')) return cerrarModal();
+  cerrarHojaMas();
+});
+
+/* ── MODO CLARO / OSCURO ──
+   El tema inicial lo pone el script del <head>. El botón lo cambia y lo
+   recuerda en este dispositivo (cada teléfono o compu elige el suyo). */
+const btnTema = document.getElementById('btn-tema');
+function aplicarTema(tema, { guardar = false } = {}) {
+  document.documentElement.setAttribute('data-theme', tema);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', tema === 'dark' ? '#1A1216' : '#FFFFFF');
+  const otro = tema === 'dark' ? 'claro' : 'oscuro';
+  btnTema?.setAttribute('aria-label', `Pasar a modo ${otro}`);
+  btnTema?.setAttribute('title', `Modo ${otro}`);
+  if (guardar) { try { localStorage.setItem('tema', tema); } catch {} }
+}
+aplicarTema(document.documentElement.getAttribute('data-theme') || 'light');
+btnTema?.addEventListener('click', () => {
+  aplicarTema(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark', { guardar: true });
+});
+// Si nunca se eligió, acompaña el cambio del sistema (p. ej. el modo oscuro automático de noche).
+window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', e => {
+  let elegido = null;
+  try { elegido = localStorage.getItem('tema'); } catch {}
+  if (!elegido) aplicarTema(e.matches ? 'dark' : 'light');
+});
+
+/* Con Tab el foco no se escapa del modal o diálogo abierto. */
+function atraparFoco(e, contenedor) {
+  if (e.key !== 'Tab') return;
+  const enfocables = [...contenedor.querySelectorAll(
+    'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled])'
+  )].filter(el => el.tabIndex >= 0 && el.getClientRects().length);
+  if (!enfocables.length) return;
+  const primero = enfocables[0], ultimo = enfocables[enfocables.length - 1];
+  if (e.shiftKey && document.activeElement === primero) { e.preventDefault(); ultimo.focus(); }
+  else if (!e.shiftKey && document.activeElement === ultimo) { e.preventDefault(); primero.focus(); }
+}
+
+/* Mientras se guarda: botón deshabilitado y con texto de espera. Evita
+   cargar dos veces lo mismo si el servidor tarda (Render dormido). */
+function ocupado(boton, texto = 'Guardando...') {
+  if (!boton) return () => {};
+  const original = boton.innerHTML;
+  boton.disabled = true;
+  boton.setAttribute('aria-busy', 'true');
+  boton.textContent = texto;
+  return () => {
+    boton.disabled = false;
+    boton.removeAttribute('aria-busy');
+    boton.innerHTML = original;
+  };
+}
 
 /* ── DASHBOARD ── */
 async function inicializarDashboard() {
@@ -301,9 +392,13 @@ async function inicializarDashboard() {
     }
   }
 
+  // Al volver al Inicio sin cambios en los datos, la tabla ya está dibujada:
+  // rearmar ~100 tarjetas en cada cambio de pestaña trababa el celular.
+  if (dashboardPintadoCon === insumosCache) return;
   actualizarStats(insumosCache);
   aplicarFiltros();
   renderPanelAlertas(insumosCache);
+  dashboardPintadoCon = insumosCache;
 }
 
 async function cargarDashboard(tipoId) {
@@ -328,6 +423,7 @@ async function cargarDashboard(tipoId) {
   actualizarStats(insumosCache);
   aplicarFiltros();
   renderPanelAlertas(insumosCache);
+  dashboardPintadoCon = insumosCache;
 }
 
 function actualizarStats(insumos) {
@@ -396,7 +492,7 @@ function renderTablaInsumos(insumos, emptyMsg = 'No hay insumos en esta categor�
   tbody.innerHTML = insumos.map(i => {
     const critico = i.estado_critico;
     const thumb   = i.imagen_url
-      ? `<img src="${esc(i.imagen_url)}" class="table-thumbnail" alt="" loading="lazy" />`
+      ? `<img src="${esc(i.imagen_url)}" class="table-thumbnail" alt="" width="36" height="36" loading="lazy" decoding="async" />`
       : '';
     return `
       <tr class="${critico ? 'fila-critica' : ''}">
@@ -411,7 +507,7 @@ function renderTablaInsumos(insumos, emptyMsg = 'No hay insumos en esta categor�
           </span>
         </td>
         <td class="c-accion">
-          <button class="btn-editar" data-id="${i.id}" title="Editar insumo" aria-label="Editar ${esc(i.nombre)}">✎</button>
+          <button type="button" class="btn-editar" data-id="${i.id}" title="Editar insumo" aria-label="Editar ${esc(i.nombre)}">${ICONO.editar}</button>
         </td>
       </tr>
     `;
@@ -458,8 +554,10 @@ document.getElementById('select-orden')?.addEventListener('change', e => {
 document.querySelectorAll('.filtro-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     filtroEstado = btn.dataset.estado;
-    document.querySelectorAll('.filtro-btn').forEach(b => b.classList.remove('filtro-btn-active'));
-    btn.classList.add('filtro-btn-active');
+    document.querySelectorAll('.filtro-btn').forEach(b => {
+      b.classList.toggle('filtro-btn-active', b === btn);
+      b.setAttribute('aria-pressed', String(b === btn));
+    });
     aplicarFiltros();
   });
 });
@@ -649,6 +747,7 @@ document.getElementById('form-ingreso')?.addEventListener('submit', async e => {
     return;
   }
 
+  const listo = ocupado(e.target.querySelector('[type="submit"]'), 'Registrando...');
   try {
     const res  = await fetch(`${API}/movimientos/ingreso`, {
       method:  'POST',
@@ -676,6 +775,8 @@ document.getElementById('form-ingreso')?.addEventListener('submit', async e => {
     }
   } catch {
     mostrarResultado(div, 'error', 'Error de conexión con el servidor.');
+  } finally {
+    listo();
   }
 });
 
@@ -732,10 +833,12 @@ function avisoNombreCategoria(nombreId, tipoId, hintId) {
 });
 
 let insumoEditando = null;
+let focoAntesDelModal = null;
 
 async function abrirModalEditar(id) {
   const insumo = insumosCache.find(i => i.id === id);
   if (!insumo) return;
+  focoAntesDelModal = document.activeElement;
   try { await Promise.all([asegurarTipos(), asegurarUnidades()]); } catch { return; }
   insumoEditando = insumo;
   prepararAjuste(insumo);
@@ -768,6 +871,10 @@ async function abrirModalEditar(id) {
 
 function cerrarModal() {
   document.getElementById('modal-editar').classList.add('hidden');
+  // Vuelve el foco a donde estaba (si la tabla se redibujó, al buscador).
+  const destino = focoAntesDelModal?.isConnected ? focoAntesDelModal : document.getElementById('buscador-tabla');
+  focoAntesDelModal = null;
+  destino?.focus({ preventScroll: true });
 }
 
 document.getElementById('edit-tipo')?.addEventListener('change', () => {
@@ -780,6 +887,7 @@ document.getElementById('btn-cancelar-editar')?.addEventListener('click', cerrar
 document.getElementById('modal-editar')?.addEventListener('click', e => {
   if (e.target === document.getElementById('modal-editar')) cerrarModal();
 });
+document.getElementById('modal-editar')?.addEventListener('keydown', e => atraparFoco(e, e.currentTarget));
 
 // Preview imagen en modal editar
 document.getElementById('edit-imagen')?.addEventListener('change', e => {
@@ -848,6 +956,7 @@ document.getElementById('form-editar-insumo')?.addEventListener('submit', async 
     return;
   }
 
+  const listo = ocupado(e.target.querySelector('[type="submit"]'));
   try {
     let data = orig;
     if (Object.keys(body).length) {
@@ -874,12 +983,15 @@ document.getElementById('form-editar-insumo')?.addEventListener('submit', async 
     setTimeout(cerrarModal, 1200);
   } catch {
     mostrarResultado(div, 'error', 'Error de conexión.');
+  } finally {
+    listo();
   }
 });
 
 /* ── AJUSTE DE STOCK (recuento físico) ── */
 function prepararAjuste(insumo) {
   document.getElementById('ajuste-campos').classList.add('hidden');
+  document.getElementById('btn-abrir-ajuste')?.setAttribute('aria-expanded', 'false');
   document.getElementById('ajuste-cantidad').value = '';
   document.getElementById('ajuste-obs').value = '';
   document.getElementById('ajuste-hint').textContent = '';
@@ -902,9 +1014,10 @@ function actualizarHintAjuste() {
     : `El sistema tiene ${cantidadTexto(ins, Number(ins.stock_actual))}. Quedaría en ${cantidadTexto(ins, contado)} (${dif > 0 ? '+' : ''}${num(dif)} ${ins.unidad_medida}).`;
 }
 
-document.getElementById('btn-abrir-ajuste')?.addEventListener('click', () => {
-  document.getElementById('ajuste-campos').classList.toggle('hidden');
-  document.getElementById('ajuste-cantidad').focus();
+document.getElementById('btn-abrir-ajuste')?.addEventListener('click', e => {
+  const abierto = !document.getElementById('ajuste-campos').classList.toggle('hidden');
+  e.currentTarget.setAttribute('aria-expanded', String(abierto));
+  if (abierto) document.getElementById('ajuste-cantidad').focus();
 });
 document.getElementById('ajuste-cantidad')?.addEventListener('input', actualizarHintAjuste);
 document.getElementById('ajuste-presentacion')?.addEventListener('change', actualizarHintAjuste);
@@ -917,6 +1030,7 @@ document.getElementById('btn-registrar-ajuste')?.addEventListener('click', async
     mostrarResultado(div, 'error', 'Ingresá el stock contado.');
     return;
   }
+  const listo = ocupado(document.getElementById('btn-registrar-ajuste'), 'Registrando...');
   try {
     const res = await fetch(`${API}/movimientos/ajuste`, {
       method:  'POST',
@@ -944,6 +1058,8 @@ document.getElementById('btn-registrar-ajuste')?.addEventListener('click', async
     insumoEditando = insumosCache.find(i => i.id === ins.id) || ins;
   } catch {
     mostrarResultado(div, 'error', 'Error de conexión con el servidor.');
+  } finally {
+    listo();
   }
 });
 
@@ -1005,6 +1121,7 @@ document.getElementById('form-nuevo-insumo')?.addEventListener('submit', async e
     return;
   }
 
+  const listo = ocupado(e.target.querySelector('[type="submit"]'));
   try {
     const res  = await fetch(`${API}/insumos`, {
       method:  'POST',
@@ -1035,6 +1152,8 @@ document.getElementById('form-nuevo-insumo')?.addEventListener('submit', async e
     }
   } catch {
     mostrarResultado(div, 'error', 'Error de conexión con el servidor.');
+  } finally {
+    listo();
   }
 });
 
@@ -1071,8 +1190,8 @@ function renderTablaCategorias() {
         : '—'}</td>
       <td class="c-dato stock-value" data-label="Insumos">${t.cantidad_insumos ?? 0}</td>
       <td class="c-accion td-acciones">
-        <button class="btn-editar btn-editar-categoria" data-id="${t.id}" title="Editar categoría">✎</button>
-        <button class="btn-editar btn-borrar-categoria" data-id="${t.id}" title="Eliminar categoría">🗑</button>
+        <button type="button" class="btn-editar btn-editar-categoria" data-id="${t.id}" title="Editar categoría" aria-label="Editar categoría ${esc(t.nombre)}">${ICONO.editar}</button>
+        <button type="button" class="btn-editar btn-borrar btn-borrar-categoria" data-id="${t.id}" title="Eliminar categoría" aria-label="Eliminar categoría ${esc(t.nombre)}">${ICONO.borrar}</button>
       </td>
     </tr>`).join('');
 }
@@ -1082,13 +1201,13 @@ function agregarFilaCampo(c = {}) {
   fila.className = 'editor-fila editor-fila-campo';
   if (c.clave) fila.dataset.clave = c.clave; // se conserva al renombrar, para no perder los datos cargados
   fila.innerHTML = `
-    <input type="text" class="form-control campo-etiqueta" placeholder="Ej: Talle, Color, Ancho" maxlength="40" value="${esc(c.etiqueta || '')}" />
-    <select class="form-control form-select campo-tipo">
+    <input type="text" class="form-control campo-etiqueta" placeholder="Ej: Talle, Color, Ancho" maxlength="40" value="${esc(c.etiqueta || '')}" aria-label="Nombre de la característica" />
+    <select class="form-control form-select campo-tipo" aria-label="Tipo de dato">
       ${Object.entries(TIPOS_CAMPO_LABEL).map(([v, l]) => `<option value="${v}"${(c.tipo || 'texto') === v ? ' selected' : ''}>${l}</option>`).join('')}
     </select>
-    <input type="text" class="form-control campo-opciones" placeholder="Opciones separadas por coma: S, M, L" value="${esc((c.opciones || []).join(', '))}" />
+    <input type="text" class="form-control campo-opciones" placeholder="Opciones separadas por coma: S, M, L" value="${esc((c.opciones || []).join(', '))}" aria-label="Opciones separadas por coma" />
     <label class="campo-oblig"><input type="checkbox" class="campo-obligatorio"${c.obligatorio ? ' checked' : ''} /> Obligatorio</label>
-    <button type="button" class="editor-quitar" title="Quitar">✕</button>`;
+    <button type="button" class="editor-quitar" title="Quitar" aria-label="Quitar característica">${ICONO.cerrar}</button>`;
   const tipo = fila.querySelector('.campo-tipo');
   const opciones = fila.querySelector('.campo-opciones');
   const sync = () => opciones.classList.toggle('invisible', tipo.value !== 'opciones');
@@ -1204,6 +1323,7 @@ document.getElementById('form-categoria')?.addEventListener('submit', async e =>
     } catch { /* si no se pudo consultar, se cambia sólo la categoría */ }
   }
 
+  const listo = ocupado(e.target.querySelector('[type="submit"]'));
   try {
     const res  = await fetch(id ? `${API}/categorias/${id}` : `${API}/categorias`, {
       method:  id ? 'PATCH' : 'POST',
@@ -1224,6 +1344,8 @@ document.getElementById('form-categoria')?.addEventListener('submit', async e =>
     }
   } catch {
     mostrarResultado(div, 'error', 'Error de conexión con el servidor.');
+  } finally {
+    listo();
   }
 });
 
@@ -1235,8 +1357,8 @@ function renderUnidades() {
     <div class="unidad-item">
       <span class="unidad-nombre">${esc(u.nombre)}</span>
       <span class="attr-sub">${u.insumos} insumo${u.insumos === 1 ? '' : 's'}</span>
-      <button type="button" class="btn-editar btn-renombrar-unidad" data-id="${u.id}" title="Renombrar o unificar">✎</button>
-      <button type="button" class="btn-editar btn-borrar-unidad" data-id="${u.id}" title="Eliminar"${u.insumos ? ' disabled' : ''}>🗑</button>
+      <button type="button" class="btn-editar btn-renombrar-unidad" data-id="${u.id}" title="Renombrar o unificar" aria-label="Renombrar ${esc(u.nombre)}">${ICONO.editar}</button>
+      <button type="button" class="btn-editar btn-borrar btn-borrar-unidad" data-id="${u.id}" title="${u.insumos ? 'Tiene insumos: no se puede eliminar' : 'Eliminar'}" aria-label="Eliminar ${esc(u.nombre)}"${u.insumos ? ' disabled' : ''}>${ICONO.borrar}</button>
     </div>`).join('');
 }
 
@@ -1276,7 +1398,11 @@ document.getElementById('form-unidad')?.addEventListener('submit', async e => {
   const input = document.getElementById('unidad-nueva');
   const nombre = input.value.trim();
   if (!nombre) return;
-  const data = await guardarUnidad(`${API}/unidades`, 'POST', nombre);
+  const listo = ocupado(e.target.querySelector('[type="submit"]'), 'Agregando...');
+  let data = null;
+  try { data = await guardarUnidad(`${API}/unidades`, 'POST', nombre); }
+  catch { mostrarResultado(document.getElementById('resultado-unidad'), 'error', 'Error de conexión con el servidor.'); }
+  finally { listo(); }
   if (data) {
     input.value = '';
     mostrarResultado(document.getElementById('resultado-unidad'), 'ok', `✓ Unidad "${data.nombre}" agregada.`);
@@ -1327,16 +1453,19 @@ function dialogo({ titulo, mensaje = '', nota = '', botones, campo = null }) {
   return new Promise(resolve => {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay dialogo-overlay';
+    const idTitulo = `dialogo-titulo-${Date.now()}`;
+    const focoPrevio = document.activeElement;
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', idTitulo);
     overlay.innerHTML = `
       <div class="modal-card dialogo-card">
         <div class="modal-header">
-          <h2 class="modal-title">${esc(titulo)}</h2>
-          <button type="button" class="modal-close" data-cerrar aria-label="Cerrar">✕</button>
+          <h2 class="modal-title" id="${idTitulo}">${esc(titulo)}</h2>
+          <button type="button" class="modal-close" data-cerrar aria-label="Cerrar">${ICONO.cerrar}</button>
         </div>
         ${mensaje ? `<div class="dialogo-mensaje">${mensaje}</div>` : ''}
-        ${campo ? `<input type="text" class="form-control dialogo-campo" value="${esc(campo.valor || '')}" />
+        ${campo ? `<input type="text" class="form-control dialogo-campo" value="${esc(campo.valor || '')}" aria-label="${esc(titulo)}" />
                    ${campo.ayuda ? `<div class="campo-hint">${esc(campo.ayuda)}</div>` : ''}` : ''}
         ${nota ? `<div class="dialogo-nota">${nota}</div>` : ''}
         <div class="modal-actions dialogo-acciones">
@@ -1348,11 +1477,13 @@ function dialogo({ titulo, mensaje = '', nota = '', botones, campo = null }) {
     const cerrar = (valor) => {
       document.removeEventListener('keydown', teclas, true);
       overlay.remove();
+      if (focoPrevio?.isConnected) focoPrevio.focus({ preventScroll: true });
       resolve(valor === null || !campo ? valor : { valor, texto: input.value.trim() });
     };
     const teclas = (e) => {
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cerrar(null); }
       if (e.key === 'Enter' && e.target === input) { e.preventDefault(); cerrar(botones[botones.length - 1].valor); }
+      atraparFoco(e, overlay);
     };
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay || e.target.closest('[data-cerrar]')) return cerrar(null);
@@ -1403,7 +1534,9 @@ function mostrarResultado(div, tipo, msg) {
   div.className = `resultado ${tipo}`;
   div.textContent = msg;
   div.classList.remove('hidden');
-  setTimeout(() => div.classList.add('hidden'), 6000);
+  // Si había un mensaje anterior, su temporizador no tiene que esconder este.
+  clearTimeout(div._ocultar);
+  div._ocultar = setTimeout(() => div.classList.add('hidden'), 6000);
 }
 
 // Exponer para egreso.js.
@@ -1414,4 +1547,8 @@ window.refrescarDashboard = () => cargarDashboard(currentDashboardTipo);
 window.refrescarAutocompletar = () => {}; // se sobreescribe en egreso.js
 
 /* ── INICIO ── */
-inicializarDashboard();
+// Se abre en la sección de la dirección (#egreso...). El dashboard se carga
+// igual, porque de ahí sale el aviso de críticos de la barra de arriba.
+const paginaInicial = paginaDelHash();
+showPage(paginaInicial, { enfocar: false });
+if (paginaInicial !== 'dashboard') inicializarDashboard();
