@@ -314,8 +314,9 @@ document.addEventListener('keydown', e => {
 });
 
 /* ── MODO CLARO / OSCURO ──
-   El tema inicial lo pone el script del <head>. El botón lo cambia y lo
-   recuerda en este dispositivo (cada teléfono o compu elige el suyo). */
+   El tema inicial lo pone el script del <head>: claro la primera vez, o el
+   que se eligió antes. El botón lo cambia y lo recuerda en este dispositivo
+   (cada teléfono o compu tiene el suyo). */
 const btnTema = document.getElementById('btn-tema');
 function aplicarTema(tema, { guardar = false } = {}) {
   document.documentElement.setAttribute('data-theme', tema);
@@ -328,12 +329,6 @@ function aplicarTema(tema, { guardar = false } = {}) {
 aplicarTema(document.documentElement.getAttribute('data-theme') || 'light');
 btnTema?.addEventListener('click', () => {
   aplicarTema(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark', { guardar: true });
-});
-// Si nunca se eligió, acompaña el cambio del sistema (p. ej. el modo oscuro automático de noche).
-window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', e => {
-  let elegido = null;
-  try { elegido = localStorage.getItem('tema'); } catch {}
-  if (!elegido) aplicarTema(e.matches ? 'dark' : 'light');
 });
 
 /* Con Tab el foco no se escapa del modal o diálogo abierto. */
