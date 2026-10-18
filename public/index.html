@@ -5,14 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#FFFFFF" />
   <script>
-    /* Modo claro/oscuro antes de pintar la página (así no parpadea en blanco).
-       Si nunca se tocó el botón, sigue la configuración del teléfono o la compu. */
+    /* Modo claro/oscuro antes de pintar la página (así no parpadea).
+       La primera vez arranca en claro; después, en el que se haya elegido
+       con el botón en este dispositivo. */
     (function () {
       var tema = null;
       try { tema = localStorage.getItem('tema'); } catch (e) {}
-      if (tema !== 'dark' && tema !== 'light') {
-        tema = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      }
+      if (tema !== 'dark') tema = 'light';
       document.documentElement.setAttribute('data-theme', tema);
       if (tema === 'dark') document.querySelector('meta[name="theme-color"]').setAttribute('content', '#1A1216');
     })();

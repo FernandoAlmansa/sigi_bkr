@@ -62,11 +62,16 @@
   --tabbar-bg:    rgba(255,255,255,.96);
   --aviso-bg:     #4A2F3A;
   color-scheme: light;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --nav-h:     64px;
 }
 
 /* ── MODO OSCURO ──
    Sólo cambian los tonos: el rosa sigue siendo el color de la marca.
-   Se activa con el botón de la barra (o según el teléfono, si nunca se tocó). */
+   Arranca en claro; el oscuro se elige con el botón de la barra y queda guardado. */
 :root[data-theme="dark"] {
   --bg:         #1A1216;
   --bg-surface: #241920;
@@ -104,11 +109,6 @@
   --overlay:      rgba(0,0,0,.6);
   --tabbar-bg:    rgba(36,25,32,.94);
   color-scheme: dark;
-
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
-  --nav-h:     64px;
 }
 
 html, body {
