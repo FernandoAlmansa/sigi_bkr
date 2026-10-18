@@ -4,53 +4,75 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#FFFFFF" />
+  <script>
+    /* Modo claro/oscuro antes de pintar la página (así no parpadea en blanco).
+       Si nunca se tocó el botón, sigue la configuración del teléfono o la compu. */
+    (function () {
+      var tema = null;
+      try { tema = localStorage.getItem('tema'); } catch (e) {}
+      if (tema !== 'dark' && tema !== 'light') {
+        tema = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.setAttribute('data-theme', tema);
+      if (tema === 'dark') document.querySelector('meta[name="theme-color"]').setAttribute('content', '#1A1216');
+    })();
+  </script>
   <title>STOCK-BKR | Gestión de Inventario</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=Caveat:wght@600;700&display=swap" />
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
 
   <!-- NAVBAR -->
-  <nav class="navbar">
+  <nav class="navbar" aria-label="Principal">
     <div class="nav-brand">
-      <span class="brand-icon">◈</span>
+      <span class="brand-icon" aria-hidden="true">◈</span>
       <span class="brand-name">STOCK<span class="brand-accent">BKR</span></span>
     </div>
     <div class="nav-links">
-      <a href="#" class="nav-link active" data-page="dashboard">Dashboard</a>
-      <a href="#" class="nav-link" data-page="egreso">Registrar Egreso</a>
-      <a href="#" class="nav-link" data-page="ingreso">Registrar Ingreso</a>
-      <a href="#" class="nav-link" data-page="catalogo">Catálogo</a>
-      <a href="#" class="nav-link" data-page="categorias">Categorías</a>
-      <a href="#" class="nav-link" data-page="historial">Historial</a>
+      <a href="#dashboard" class="nav-link active" data-page="dashboard">Dashboard</a>
+      <a href="#egreso" class="nav-link" data-page="egreso">Registrar Egreso</a>
+      <a href="#ingreso" class="nav-link" data-page="ingreso">Registrar Ingreso</a>
+      <a href="#catalogo" class="nav-link" data-page="catalogo">Catálogo</a>
+      <a href="#categorias" class="nav-link" data-page="categorias">Categorías</a>
+      <a href="#historial" class="nav-link" data-page="historial">Historial</a>
     </div>
-    <div id="alert-badge" class="alert-badge hidden">
-      <span class="badge-dot"></span>
-      <span id="alert-count">0</span> críticos
+    <div class="nav-acciones">
+      <div id="alert-badge" class="alert-badge hidden">
+        <span class="badge-dot"></span>
+        <span id="alert-count">0</span> críticos
+      </div>
+      <button type="button" id="btn-tema" class="btn-tema" aria-label="Pasar a modo oscuro" title="Modo oscuro">
+        <svg class="ico ico-luna" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+        <svg class="ico ico-sol" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/></svg>
+      </button>
     </div>
   </nav>
 
   <!-- NAVEGACIÓN EN CELULAR Y TABLET: barra inferior (al alcance del pulgar).
        En celular, Catálogo y Categorías van dentro de "Más". -->
   <nav class="tabbar" aria-label="Secciones">
-    <a href="#" class="nav-link tab" data-page="dashboard"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg><span>Inicio</span></a>
-    <a href="#" class="nav-link tab" data-page="egreso"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M4 14v4.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V14"/></svg><span>Egreso</span></a>
-    <a href="#" class="nav-link tab" data-page="ingreso"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M4 14v4.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V14"/></svg><span>Ingreso</span></a>
-    <a href="#" class="nav-link tab tab-extra" data-page="catalogo"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/><path d="M12 8v8M8 12h8"/></svg><span>Catálogo</span></a>
-    <a href="#" class="nav-link tab tab-extra" data-page="categorias"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.6V4.5a1 1 0 0 1 1-1h8.1a1 1 0 0 1 .7.3l7.2 7.2a1 1 0 0 1 0 1.4l-8.1 8.1a1 1 0 0 1-1.4 0l-7.2-7.2a1 1 0 0 1-.3-.7z"/><circle cx="8.5" cy="8.5" r="1.5"/></svg><span>Categorías</span></a>
-    <a href="#" class="nav-link tab" data-page="historial"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg><span>Historial</span></a>
-    <button type="button" class="tab tab-mas" id="tab-mas" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5.5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18.5" cy="12" r="1.6"/></svg><span>Más</span></button>
+    <a href="#dashboard" class="nav-link tab" data-page="dashboard"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg><span>Inicio</span></a>
+    <a href="#egreso" class="nav-link tab" data-page="egreso"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M4 14v4.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V14"/></svg><span>Egreso</span></a>
+    <a href="#ingreso" class="nav-link tab" data-page="ingreso"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M4 14v4.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V14"/></svg><span>Ingreso</span></a>
+    <a href="#catalogo" class="nav-link tab tab-extra" data-page="catalogo"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/><path d="M12 8v8M8 12h8"/></svg><span>Catálogo</span></a>
+    <a href="#categorias" class="nav-link tab tab-extra" data-page="categorias"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.6V4.5a1 1 0 0 1 1-1h8.1a1 1 0 0 1 .7.3l7.2 7.2a1 1 0 0 1 0 1.4l-8.1 8.1a1 1 0 0 1-1.4 0l-7.2-7.2a1 1 0 0 1-.3-.7z"/><circle cx="8.5" cy="8.5" r="1.5"/></svg><span>Categorías</span></a>
+    <a href="#historial" class="nav-link tab" data-page="historial"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg><span>Historial</span></a>
+    <button type="button" class="tab tab-mas" id="tab-mas" aria-haspopup="dialog" aria-expanded="false" aria-controls="hoja-mas"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5.5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18.5" cy="12" r="1.6"/></svg><span>Más</span></button>
   </nav>
 
   <div id="hoja-mas" class="hoja hidden" aria-hidden="true">
-    <div class="hoja-card" role="menu">
+    <div class="hoja-card" role="dialog" aria-label="Más secciones">
       <span class="hoja-asa" aria-hidden="true"></span>
-      <a href="#" class="nav-link hoja-link" data-page="catalogo" role="menuitem">
+      <a href="#catalogo" class="nav-link hoja-link" data-page="catalogo">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/><path d="M12 8v8M8 12h8"/></svg><span><strong>Catálogo</strong><small>Dar de alta un insumo nuevo</small></span>
       </a>
-      <a href="#" class="nav-link hoja-link" data-page="categorias" role="menuitem">
+      <a href="#categorias" class="nav-link hoja-link" data-page="categorias">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.6V4.5a1 1 0 0 1 1-1h8.1a1 1 0 0 1 .7.3l7.2 7.2a1 1 0 0 1 0 1.4l-8.1 8.1a1 1 0 0 1-1.4 0l-7.2-7.2a1 1 0 0 1-.3-.7z"/><circle cx="8.5" cy="8.5" r="1.5"/></svg><span><strong>Categorías</strong><small>Características, unidades y presentaciones</small></span>
       </a>
     </div>
@@ -63,13 +85,13 @@
     <section id="page-dashboard" class="page active">
       <div class="page-header">
         <h1>Panel de inventario</h1>
-        <p class="page-sub">Estado general del stock— Bikinis Río</p>
+        <p class="page-sub">Estado general del stock — Bikinis Río</p>
       </div>
 
       <!-- Panel de alertas críticas -->
       <div id="panel-alertas" class="alert-panel hidden">
         <div class="alert-panel-header">
-          <span class="alert-icon">▲</span>
+          <span class="alert-icon"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 4.2 2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4M12 17h.01"/></svg></span>
           <strong>Insumos en stock crítico</strong>
         </div>
         <div id="lista-criticos" class="alert-list"></div>
@@ -103,9 +125,9 @@
             <option value="">Todas las categorías</option>
           </select>
           <div class="filtro-estado-btns" role="group" aria-label="Filtrar por estado">
-            <button class="filtro-btn filtro-btn-active" data-estado="todos">Todos</button>
-            <button class="filtro-btn filtro-btn-warn" data-estado="critico">⚠ Críticos</button>
-            <button class="filtro-btn" data-estado="normal">Normal</button>
+            <button type="button" class="filtro-btn filtro-btn-active" data-estado="todos" aria-pressed="true">Todos</button>
+            <button type="button" class="filtro-btn filtro-btn-warn" data-estado="critico" aria-pressed="false"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 4.2 2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4M12 17h.01"/></svg> Críticos</button>
+            <button type="button" class="filtro-btn" data-estado="normal" aria-pressed="false">Normal</button>
           </div>
           <select id="select-orden" class="form-control form-select toolbar-select filtro-orden" aria-label="Orden">
             <option value="default">Críticos primero</option>
@@ -127,7 +149,7 @@
             </tr>
           </thead>
           <tbody id="tbody-insumos">
-            <tr><td colspan="6" class="loading-row">Cargando...</td></tr>
+            <tr><td colspan="7" class="loading-row">Cargando...</td></tr>
           </tbody>
         </table>
       </div>
@@ -162,13 +184,13 @@
         <form id="form-egreso" autocomplete="off">
           <!-- PASO 1: Selector con autocompletado -->
           <div class="form-group">
-            <label class="form-label">Categoría <span class="optional">(opcional)</span></label>
+            <label class="form-label" for="egreso-tipo">Categoría <span class="optional">(opcional)</span></label>
             <select id="egreso-tipo" class="form-control form-select">
               <option value="">Todas las categorías</option>
             </select>
           </div>
           <div class="form-group" id="group-insumo">
-            <label class="form-label">Insumo</label>
+            <label class="form-label" for="input-insumo-texto">Insumo</label>
             <div class="autocomplete-wrapper">
               <input
                 type="text"
@@ -176,9 +198,13 @@
                 placeholder="Buscar insumo..."
                 class="form-control autocomplete-input"
                 autocomplete="off"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded="false"
+                aria-controls="autocomplete-lista"
               />
               <input type="hidden" id="input-insumo-id" />
-              <ul id="autocomplete-lista" class="autocomplete-list hidden"></ul>
+              <ul id="autocomplete-lista" class="autocomplete-list hidden" role="listbox" aria-label="Insumos encontrados"></ul>
             </div>
 
             <!-- Info del insumo seleccionado -->
@@ -212,7 +238,7 @@
           <!-- Presentación del egreso (sólo si el insumo tiene presentaciones) -->
           <div id="presentacion-egreso-opciones" class="form-group hidden">
             <label class="form-label">¿En qué unidad vas a dar de baja?</label>
-            <div class="tela-toggle-row" id="presentacion-botones"></div>
+            <div class="tela-toggle-row" id="presentacion-botones" role="group" aria-label="Unidad del egreso"></div>
           </div>
 
           <!-- PASO 2: Cantidad -->
@@ -225,11 +251,12 @@
                 class="form-control cantidad-input"
                 min="0.01"
                 step="0.01"
+                inputmode="decimal"
                 placeholder="0"
               />
               <span class="unidad-badge" id="badge-unidad">unid.</span>
             </div>
-            <div id="advertencia-stock" class="form-warning hidden">
+            <div id="advertencia-stock" class="form-warning hidden" aria-live="polite">
               ⚠ La cantidad supera el stock disponible.
             </div>
           </div>
@@ -247,7 +274,7 @@
         </form>
 
         <!-- Resultado del submit -->
-        <div id="resultado-egreso" class="resultado hidden"></div>
+        <div id="resultado-egreso" class="resultado hidden" role="status"></div>
       </div>
     </section>
 
@@ -261,13 +288,13 @@
       <div class="form-card">
         <form id="form-ingreso" autocomplete="off">
           <div class="form-group">
-            <label class="form-label">Categoría</label>
+            <label class="form-label" for="ingreso-tipo">Categoría</label>
             <select id="ingreso-tipo" class="form-control form-select">
               <option value="">— Seleccionar categoría —</option>
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">Insumo</label>
+            <label class="form-label" for="select-ingreso-insumo">Insumo</label>
             <select id="select-ingreso-insumo" class="form-control form-select" disabled>
               <option value="">— Primero seleccioná una categoría —</option>
             </select>
@@ -275,11 +302,11 @@
           <div class="form-group">
             <label class="form-label" for="ingreso-cantidad">Cantidad ingresada</label>
             <div class="cantidad-row">
-              <input type="number" id="ingreso-cantidad" class="form-control cantidad-input" min="0.001" step="any" placeholder="0" />
+              <input type="number" id="ingreso-cantidad" class="form-control cantidad-input" min="0.001" step="any" inputmode="decimal" placeholder="0" />
               <select id="ingreso-presentacion" class="form-control form-select unidad-select hidden" aria-label="Unidad del ingreso"></select>
               <span class="unidad-badge" id="ingreso-badge-unidad">unid.</span>
             </div>
-            <div id="ingreso-conversion" class="tela-nota hidden"></div>
+            <div id="ingreso-conversion" class="tela-nota hidden" aria-live="polite"></div>
           </div>
           <div class="form-group">
             <label class="form-label" for="ingreso-obs">Observación <span class="optional">(opcional)</span></label>
@@ -287,7 +314,7 @@
           </div>
           <button type="submit" class="btn-primary btn-lg">Registrar ingreso</button>
         </form>
-        <div id="resultado-ingreso" class="resultado hidden"></div>
+        <div id="resultado-ingreso" class="resultado hidden" role="status"></div>
       </div>
     </section>
 
@@ -300,7 +327,7 @@
 
       <div class="table-container">
         <div class="table-toolbar toolbar-historial">
-          <select id="filtro-tipo" class="form-control form-select filtro-historial">
+          <select id="filtro-tipo" class="form-control form-select filtro-historial" aria-label="Tipo de movimiento">
             <option value="">Todos los movimientos</option>
             <option value="INGRESO">Ingresos</option>
             <option value="EGRESO">Egresos</option>
@@ -308,7 +335,7 @@
           </select>
           <label class="filtro-fecha">Desde <input type="date" id="filtro-desde" class="form-control" /></label>
           <label class="filtro-fecha">Hasta <input type="date" id="filtro-hasta" class="form-control" /></label>
-          <button class="btn-secondary btn-buscar" id="btn-cargar-historial">Buscar</button>
+          <button type="button" class="btn-secondary btn-buscar" id="btn-cargar-historial">Buscar</button>
         </div>
         <table class="data-table tabla-tarjetas tabla-historial">
           <thead>
@@ -326,7 +353,7 @@
           </tbody>
         </table>
         <div class="historial-pie">
-          <span id="historial-info" class="attr-sub"></span>
+          <span id="historial-info" class="attr-sub" aria-live="polite"></span>
           <button type="button" id="btn-historial-mas" class="btn-link hidden">Cargar más</button>
         </div>
       </div>
@@ -367,12 +394,12 @@
           <div class="form-row">
             <div class="form-group">
               <label class="form-label" for="cat-stock" id="cat-label-stock">Stock inicial</label>
-              <input type="number" id="cat-stock" class="form-control" min="0" step="any" value="0" />
+              <input type="number" id="cat-stock" class="form-control" min="0" step="any" inputmode="decimal" value="0" />
               <div class="campo-hint" id="cat-stock-hint"></div>
             </div>
             <div class="form-group">
               <label class="form-label" for="cat-minimo" id="cat-label-minimo">Stock mínimo (alerta)</label>
-              <input type="number" id="cat-minimo" class="form-control" min="0" step="any" value="0" />
+              <input type="number" id="cat-minimo" class="form-control" min="0" step="any" inputmode="decimal" value="0" />
               <div class="campo-hint" id="cat-minimo-hint"></div>
             </div>
           </div>
@@ -389,7 +416,7 @@
           </div>
           <button type="submit" class="btn-primary btn-lg">Dar de alta insumo</button>
         </form>
-        <div id="resultado-catalogo" class="resultado hidden"></div>
+        <div id="resultado-catalogo" class="resultado hidden" role="status"></div>
       </div>
     </section>
 
@@ -433,7 +460,7 @@
             <button type="submit" class="btn-primary">Guardar categoría</button>
           </div>
         </form>
-        <div id="resultado-categoria" class="resultado hidden"></div>
+        <div id="resultado-categoria" class="resultado hidden" role="status"></div>
       </div>
 
       <div class="table-container">
@@ -458,11 +485,11 @@
         <h2 class="form-card-title">Unidades de medida</h2>
         <div class="tela-nota">Son las únicas unidades que se pueden elegir en insumos y categorías. Para corregir una mal escrita, renombrala: si le ponés el nombre de otra que ya existe, se unifican y los insumos pasan a la correcta.</div>
         <form id="form-unidad" class="unidad-alta" autocomplete="off">
-          <input type="text" id="unidad-nueva" class="form-control" maxlength="20" placeholder="Nueva unidad (ej: litros)" required />
+          <input type="text" id="unidad-nueva" class="form-control" maxlength="20" placeholder="Nueva unidad (ej: litros)" aria-label="Nueva unidad" required />
           <button type="submit" class="btn-secondary">Agregar</button>
         </form>
         <div id="lista-unidades" class="lista-unidades"></div>
-        <div id="resultado-unidad" class="resultado hidden"></div>
+        <div id="resultado-unidad" class="resultado hidden" role="status"></div>
       </div>
     </section>
 
@@ -472,11 +499,11 @@
   <datalist id="presentaciones-sugeridas"></datalist>
 
   <!-- MODAL EDITAR INSUMO -->
-  <div id="modal-editar" class="modal-overlay hidden" role="dialog" aria-modal="true">
+  <div id="modal-editar" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-editar-titulo">
     <div class="modal-card">
       <div class="modal-header">
-        <h2 class="modal-title">Editar insumo</h2>
-        <button type="button" id="modal-cerrar" class="modal-close" aria-label="Cerrar">✕</button>
+        <h2 class="modal-title" id="modal-editar-titulo">Editar insumo</h2>
+        <button type="button" id="modal-cerrar" class="modal-close" aria-label="Cerrar"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
       </div>
       <form id="form-editar-insumo" autocomplete="off">
         <input type="hidden" id="edit-id" />
@@ -510,7 +537,7 @@
           </div>
           <div class="form-group">
             <label class="form-label" for="edit-minimo" id="edit-label-minimo">Stock mínimo</label>
-            <input type="number" id="edit-minimo" class="form-control" min="0" step="any" />
+            <input type="number" id="edit-minimo" class="form-control" min="0" step="any" inputmode="decimal" />
             <div class="campo-hint" id="edit-minimo-hint"></div>
           </div>
         </div>
@@ -521,15 +548,15 @@
           <div id="ajuste-campos" class="hidden">
             <div class="tela-nota">Contá lo que hay físicamente y cargalo acá. Queda registrado en el Historial como <strong>ajuste</strong>.</div>
             <div class="cantidad-row ajuste-fila">
-              <input type="number" id="ajuste-cantidad" class="form-control" min="0" step="any" placeholder="Stock contado" />
+              <input type="number" id="ajuste-cantidad" class="form-control" min="0" step="any" inputmode="decimal" placeholder="Stock contado" aria-label="Stock contado" />
               <select id="ajuste-presentacion" class="form-control form-select unidad-select" aria-label="Unidad del recuento"></select>
             </div>
-            <div class="campo-hint" id="ajuste-hint"></div>
-            <input type="text" id="ajuste-obs" class="form-control" maxlength="200" placeholder="Motivo (opcional): recuento mensual, rotura..." />
+            <div class="campo-hint" id="ajuste-hint" aria-live="polite"></div>
+            <input type="text" id="ajuste-obs" class="form-control" maxlength="200" placeholder="Motivo (opcional): recuento mensual, rotura..." aria-label="Motivo del ajuste" />
             <div class="modal-actions">
               <button type="button" class="btn-secondary" id="btn-registrar-ajuste">Registrar ajuste</button>
             </div>
-            <div id="resultado-ajuste" class="resultado hidden"></div>
+            <div id="resultado-ajuste" class="resultado hidden" role="status"></div>
           </div>
         </div>
 
@@ -548,7 +575,7 @@
           <button type="submit" class="btn-primary">Guardar cambios</button>
         </div>
       </form>
-      <div id="resultado-editar" class="resultado hidden"></div>
+      <div id="resultado-editar" class="resultado hidden" role="status"></div>
     </div>
   </div>
 
