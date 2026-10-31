@@ -356,6 +356,127 @@
           <button type="button" id="btn-historial-mas" class="btn-link hidden">Cargar más</button>
         </div>
       </div>
+
+      <!-- Del detalle al agregado: el reporte de consumo se abre desde acá. -->
+      <a href="#reporte" class="acceso-reporte">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+        <span><strong>Ver reporte de consumo</strong><small>Cuánto se usó de cada insumo y para cuántos días alcanza el stock</small></span>
+        <svg class="acceso-flecha" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+      </a>
+    </section>
+
+    <!-- ===== REPORTE DE CONSUMO (iteración 3 — CU-08) ===== -->
+    <section id="page-reporte" class="page">
+      <div class="page-header">
+        <a href="#historial" class="volver">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>Historial
+        </a>
+        <h1>Reporte de consumo</h1>
+        <p class="page-sub">Cuánto se usó de cada insumo en un período y para cuántos días alcanza el stock actual.</p>
+      </div>
+
+      <div class="table-container reporte-panel">
+        <form id="form-reporte" class="table-toolbar toolbar-reporte" novalidate>
+          <div class="campo-reporte">
+            <label class="campo-reporte-label" for="reporte-desde">Desde</label>
+            <input type="date" id="reporte-desde" class="form-control" aria-describedby="reporte-desde-error" />
+            <div class="campo-error" id="reporte-desde-error"></div>
+          </div>
+          <div class="campo-reporte">
+            <label class="campo-reporte-label" for="reporte-hasta">Hasta</label>
+            <input type="date" id="reporte-hasta" class="form-control" aria-describedby="reporte-hasta-error" />
+            <div class="campo-error" id="reporte-hasta-error"></div>
+          </div>
+          <div class="campo-reporte">
+            <label class="campo-reporte-label" for="reporte-tipo">Tipo de insumo</label>
+            <select id="reporte-tipo" class="form-control form-select">
+              <option value="">Todos los tipos</option>
+            </select>
+          </div>
+          <div class="campo-reporte">
+            <label class="campo-reporte-label" for="reporte-orden">Ordenar por</label>
+            <select id="reporte-orden" class="form-control form-select">
+              <option value="CRITICIDAD">Criticidad</option>
+              <option value="CONSUMO">Consumo</option>
+              <option value="NOMBRE">Nombre</option>
+            </select>
+          </div>
+          <button type="submit" class="btn-primary btn-generar" id="btn-generar-reporte">Generar reporte</button>
+        </form>
+
+        <div class="umbrales-barra">
+          <p id="umbrales-texto" class="umbrales-texto">Cargando umbrales…</p>
+          <button type="button" class="btn-link" id="btn-modificar-umbrales" aria-expanded="false" aria-controls="form-umbrales">Modificar umbrales</button>
+        </div>
+        <form id="form-umbrales" class="umbrales-form hidden" novalidate>
+          <p class="tela-nota">Los reportes ya generados conservan los umbrales con que se clasificaron.</p>
+          <div class="umbrales-campos">
+            <div class="campo-reporte">
+              <label class="campo-reporte-label" for="umbral-criticidad">Crítica hasta (días)</label>
+              <input type="number" id="umbral-criticidad" class="form-control" min="1" step="1" inputmode="numeric" />
+            </div>
+            <div class="campo-reporte">
+              <label class="campo-reporte-label" for="umbral-observacion">Observación hasta (días)</label>
+              <input type="number" id="umbral-observacion" class="form-control" min="2" step="1" inputmode="numeric" />
+            </div>
+            <div class="campo-reporte">
+              <label class="campo-reporte-label" for="umbral-minimo">Mínimo de egresos</label>
+              <input type="number" id="umbral-minimo" class="form-control" min="1" step="1" inputmode="numeric" />
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" id="btn-cancelar-umbrales">Cancelar</button>
+            <button type="submit" class="btn-primary">Guardar umbrales</button>
+          </div>
+        </form>
+        <div id="resultado-umbrales" class="resultado hidden" role="status"></div>
+      </div>
+
+      <div id="reporte-error" class="resultado error hidden" role="alert"></div>
+      <p id="reporte-vacio" class="reporte-vacio">Elegí el período y tocá <strong>Generar reporte</strong>.</p>
+
+      <div id="reporte-resultado" class="hidden">
+        <div class="reporte-encabezado">
+          <p id="reporte-periodo" class="reporte-periodo"></p>
+          <ul id="reporte-resumen" class="reporte-resumen" aria-label="Insumos por estado"></ul>
+        </div>
+
+        <div class="table-container">
+          <table class="data-table tabla-tarjetas tabla-reporte">
+            <thead>
+              <tr>
+                <th>Insumo</th>
+                <th>Consumo del período</th>
+                <th>Egresos</th>
+                <th>Promedio diario</th>
+                <th>Stock actual</th>
+                <th>Cobertura</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-reporte"></tbody>
+          </table>
+        </div>
+
+        <div class="grafico-card">
+          <h2 class="grafico-titulo">Días de cobertura por insumo</h2>
+          <p class="grafico-ayuda">Stock actual dividido por el consumo promedio diario del período.</p>
+          <div id="grafico-cobertura" class="grafico"></div>
+          <p id="grafico-sin-proyeccion" class="grafico-sin-proyeccion"></p>
+        </div>
+
+        <div class="reporte-acciones">
+          <button type="button" class="btn-secondary" id="btn-exportar-pdf" data-formato="pdf">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M4 14v4.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V14"/></svg>
+            Exportar a PDF
+          </button>
+          <button type="button" class="btn-secondary" id="btn-exportar-planilla" data-formato="planilla">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M4 14v4.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V14"/></svg>
+            Exportar a planilla
+          </button>
+          <span id="reporte-exportar-info" class="attr-sub" aria-live="polite"></span>
+        </div>
+      </div>
     </section>
 
     <!-- ===== CATÁLOGO PAGE ===== -->
@@ -581,5 +702,6 @@
   <script src="js/config.js"></script>
   <script src="js/app.js"></script>
   <script src="js/egreso.js"></script>
+  <script src="js/reporte.js"></script>
 </body>
 </html>

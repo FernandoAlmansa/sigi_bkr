@@ -50,15 +50,15 @@ npm run migrate    # corre migraciones pendientes (también corren solas al arra
 ## Arquitectura (en capas)
 
 ```
-public/            Front: index.html (SPA de una página), css/styles.css, js/config.js, js/app.js, js/egreso.js
+public/            Front: index.html (SPA de una página), css/styles.css, js/config.js, js/app.js, js/egreso.js, js/reporte.js
 src/api/           HTTP: routes, controllers, middlewares (asyncHandler, errorHandler, upload con multer en memoria)
-src/services/      Aplicación: InventarioFacade, AlertaService, almacenamiento/, notificadores/
-src/domain/        Dominio: Insumo, Categoria, Movimiento, Presentacion, Unidad, errores, builders/, strategies/
+src/services/      Aplicación: InventarioFacade, FachadaReportes, AlertaService, almacenamiento/, notificadores/
+src/domain/        Dominio: Insumo, Categoria, Movimiento, Presentacion, Unidad, errores, builders/, strategies/, reportes/
 src/data/          Persistencia: db.js (pool) y repositorios
 db/                schema.sql (esquema final), migraciones.js (versionadas), seed.sql
 scripts/           importar-planilla.js, migrar-imagenes.js (one-shot, dry-run salvo --confirmar)
 ops/backup/        Kit del repo privado de backups (workflow + scripts)
-test/              dominio.test.js, inventario.test.js, configurables.test.js
+test/              dominio.test.js, inventario.test.js, configurables.test.js, reportes.test.js, integracion/ (caja negra CU-08, con base de prueba)
 ```
 
 Regla del diseño: **el SQL vive sólo en `src/data`, las reglas sólo en `src/domain`, y `src/api` no sabe que existe PostgreSQL.** Los controllers llaman a la facade y nada más.
@@ -72,13 +72,16 @@ Regla del diseño: **el SQL vive sólo en `src/data`, las reglas sólo en `src/d
 | **Strategy** | `src/domain/strategies/` (Ingreso, Egreso, Ajuste) | Cada tipo de movimiento calcula el stock nuevo y valida a su manera. Un tipo nuevo no toca el flujo transaccional |
 | **Strategy** | `src/services/almacenamiento/` | Imágenes en disco local (desarrollo) o Supabase Storage (producción) |
 | Observer | `src/services/AlertaService.js` + `notificadores/` | La alerta de stock crítico avisa a N notificadores (log, e-mail) |
+| **Facade** | `src/services/FachadaReportes.js` | Módulo de reportes (iteración 3): generar, exportar, ver y cambiar umbrales |
+| **Builder** | `src/domain/builders/reporte/` | `DirectorReporte` + constructores de pantalla, PDF (pdfkit) y planilla CSV |
+| **Strategy** | `src/domain/strategies/orden/` | Orden del reporte: criticidad, consumo, nombre |
 | Singleton | `src/data/db.js` | Un único pool de conexiones |
 
 Referencias de la cátedra: dofactory Builder, Facade y Strategy. Si agregás funcionalidad, respetá estos patrones en vez de saltearlos (por ejemplo, un movimiento nuevo es una Strategy nueva, no un `if` en la facade).
 
 ## Modelo de datos y dominio
 
-Tablas: `unidades`, `tipos_insumo` (= categorías), `insumos`, `presentaciones`, `movimientos_stock`, `_migraciones`.
+Tablas: `unidades`, `tipos_insumo` (= categorías), `insumos`, `presentaciones`, `movimientos_stock`, `umbral_cobertura`, `reporte_consumo`, `linea_consumo`, `_migraciones`.
 
 - **Categorías** (`tipos_insumo`): definen `campos` (características que se piden: `{clave, etiqueta, tipo: texto|opciones|numero, opciones, obligatorio}`), `unidad_base` sugerida y `presentaciones` sugeridas. Los `atributos` de cada insumo se validan contra los campos de su categoría.
 - **Unidades** (`unidades`): lista controlada. `insumos.unidad_medida` y `tipos_insumo.unidad_base` tienen FK con `ON UPDATE CASCADE`. `Unidad.parecida` (Damerau + singular/plural) evita duplicados tipo "metor"/"metros". Renombrar a una existente las fusiona.
@@ -86,13 +89,14 @@ Tablas: `unidades`, `tipos_insumo` (= categorías), `insumos`, `presentaciones`,
 - **Movimientos**: INGRESO, EGRESO, AJUSTE (recuento físico: fija el stock y asienta la diferencia). El stock solo cambia por movimientos: el modal de edición NUNCA manda `stock_actual`, solo los campos cambiados.
 - **RD01** stock no negativo: se valida en la Strategy, `CHECK (stock_actual >= 0)` en la base y `SELECT ... FOR UPDATE` dentro de la transacción (concurrencia).
 - **RD02** stock crítico: `stock_actual <= stock_minimo`. `estado_critico` es derivado, nunca se escribe a mano. La notificación sale después del commit y solo cuando pasa de normal a crítico.
+- **Reporte de consumo** (iteración 3, `src/domain/reportes/`): RD04 sólo egresos, RD05 cobertura = stock / promedio diario (1 decimal, se clasifica con el valor redondeado), RD06 desde ≤ hasta ≤ hoy de Argentina y mínimo de egresos. Cada reporte se guarda con sus líneas y el umbral con que se clasificó. Los umbrales no se sobrescriben: se cierra el vigente y se crea otro.
 - Cambiar la unidad de una categoría pregunta si aplicarla también a sus insumos (`aplicar_unidad_a_insumos`). El número de stock NO se convierte.
 
 ### Migraciones
 
-`db/migraciones.js` tiene migraciones idempotentes 001 a 009 que corren al arrancar el servidor (también en Render, contra la base de producción). Para cambiar el esquema:
+`db/migraciones.js` tiene migraciones idempotentes 001 a 010 que corren al arrancar el servidor (también en Render, contra la base de producción). Para cambiar el esquema:
 
-1. Agregá una migración nueva al final (`010_...`). Nunca edites una que ya corrió.
+1. Agregá una migración nueva al final (`011_...`). Nunca edites una que ya corrió.
 2. Que sea idempotente (`IF NOT EXISTS`, chequeos previos).
 3. Actualizá `db/schema.sql` para que refleje el esquema final.
 4. Acordate de que al hacer merge a `main` se aplica sola en producción: hacé backup antes.
@@ -108,11 +112,12 @@ Errores siempre `{ error, codigo, ...detalle }`: 400 validación, 404 inexistent
 - `POST /api/insumos`, `PATCH /api/insumos/:id`, `DELETE /api/insumos/:id` (baja lógica), `POST /api/insumos/:id/imagen` (multipart, máx 2 MB)
 - `GET /api/movimientos` (filtros `id_insumo`, `tipo`, `desde`, `hasta`, `limit`, `offset`)
 - `POST /api/movimientos/ingreso|egreso|ajuste` (`{ id_insumo, cantidad, presentacion?, observacion?, usuario? }`)
+- `GET /api/reportes/consumo` (`desde`, `hasta`, `id_tipo?`, `orden?`), `POST /api/reportes/consumo/:id/exportar` (`{ formato: pdf|planilla }`), `GET|PUT /api/reportes/umbrales`
 
 ## Front (public/)
 
-- SPA sin framework: scripts clásicos (no módulos) cargados en orden `config.js` → `app.js` → `egreso.js`. Las páginas son `<section class="page">` y se cambian con `showPage(id)`.
-- Páginas: Dashboard (Inicio), Egreso, Ingreso, Catálogo (alta de insumo), Categorías (+ unidades), Historial.
+- SPA sin framework: scripts clásicos (no módulos) cargados en orden `config.js` → `app.js` → `egreso.js` → `reporte.js`. Las páginas son `<section class="page">` y se cambian con `showPage(id)`.
+- Páginas: Dashboard (Inicio), Egreso, Ingreso, Catálogo (alta de insumo), Categorías (+ unidades), Historial y Reporte de consumo (`#reporte`). El reporte no está en las barras: se entra desde el pie de Historial y la barra marca Historial mientras está abierto.
 - La navegación existe en tres lugares con `.nav-link[data-page]`: barra de arriba (compu), barra inferior `.tabbar` (≤ 900 px) y la hoja "Más" (≤ 600 px, Catálogo y Categorías). Si agregás una página, agregala en los tres.
 - **Diálogos**: nunca uses `alert`, `confirm` ni `prompt`. Usá `dialogo({...})` o `confirmar(titulo, mensaje, opciones)` de `app.js`, y `fuerte(texto)` para resaltar. Siempre escapá con `esc()` lo que venga de datos.
 - Cantidades: usá `stockDisplay` / `cantidadDisplay` / `cantidadTexto`, que agregan la equivalencia en presentación ("40 metros (2 rollos)").

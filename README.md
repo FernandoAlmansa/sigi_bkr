@@ -29,6 +29,9 @@ negocio sólo en `src/domain`, y `src/api` no sabe que existe PostgreSQL.**
 | **Strategy** | Comportamiento | `src/domain/strategies/` | Ingreso, egreso y ajuste calculan el stock y validan distinto. Cada uno es una clase; sumar un tipo nuevo no toca el flujo transaccional. |
 | **Strategy** (almacenamiento) | Comportamiento | `src/services/almacenamiento/` | Dónde guardar las imágenes depende del entorno: disco local en desarrollo, Supabase Storage en producción (el disco de Render es efímero). |
 | **Builder** (categorías) | Creacional | `src/domain/builders/CategoriaBuilder.js` | La definición de una categoría (campos, unidad base, presentaciones sugeridas) se valida paso a paso acumulando errores, igual que el insumo. |
+| **Facade** (reportes) | Estructural | `src/services/FachadaReportes.js` | Punto de entrada único al módulo de reportes (iteración 3): el controller no conoce al validador, al calculador, al clasificador, a las estrategias de orden ni a los repositorios. |
+| **Builder** (reporte) | Creacional | `src/domain/builders/reporte/` | `DirectorReporte` arma el reporte siempre con los mismos pasos (encabezado, líneas, gráfico, resumen) y cada constructor produce una representación: pantalla (JSON), PDF o planilla CSV. |
+| **Strategy** (orden) | Comportamiento | `src/domain/strategies/orden/` | El criterio de orden del reporte (criticidad, consumo, nombre) es una clase por criterio; la fachada elige la que pidió la Dirección. |
 | *Singleton* | Creacional | `src/data/db.js` | Un único pool de conexiones en toda la aplicación. |
 | *Observer* | Comportamiento | `src/services/AlertaService.js` | La alerta RD02 avisa a N notificadores suscriptos (log, e-mail, y lo que se agregue) sin que el flujo de negocio los conozca. |
 
@@ -42,6 +45,9 @@ negocio sólo en `src/domain`, y `src/api` no sabe que existe PostgreSQL.**
 - **RD01 — Stock no negativo.** Un egreso mayor al disponible se rechaza con HTTP 422. Se valida en la estrategia, se refuerza con `CHECK (stock_actual >= 0)` en la base y se aísla con `SELECT ... FOR UPDATE` dentro de la transacción, de modo que dos egresos simultáneos no puedan leer el mismo stock.
 - **RD02 — Alerta de stock crítico.** Cuando un movimiento deja el stock en su mínimo o por debajo, el insumo pasa a crítico y se notifica. La notificación se dispara *después* del commit y sólo en el flanco (cuando el insumo no estaba crítico antes), para no repetir el aviso en cada egreso.
 - El campo `estado_critico` es **derivado**: se recalcula en cada actualización de stock o de mínimo, nunca se escribe a mano.
+- **RD04 — Composición del consumo.** El consumo de un período se arma sólo con egresos: ingresos y ajustes no cuentan (`MovimientoRepository.obtenerEgresos`).
+- **RD05 — Proyección de cobertura.** Días de cobertura = stock actual / consumo promedio diario, con un decimal. Sin egresos en el período, el insumo es *sin rotación* (nunca cobertura infinita).
+- **RD06 — Validez del análisis.** Desde ≤ hasta ≤ hoy (días de Argentina); si no, 400 sin consultar datos. Con menos egresos que el mínimo parametrizado, *muestra insuficiente* (sin proyección).
 
 ## Puesta en marcha (local)
 
@@ -62,9 +68,18 @@ registradas en la tabla `_migraciones`, así que se aplican una única vez.
 npm test
 ```
 
-15 pruebas sobre el dominio y la facade (con dobles de prueba), sin necesidad de
-base de datos: validaciones del builder, cálculo de cada estrategia, RD01, RD02 y
-rollback ante error.
+Pruebas sobre el dominio y las facades (con dobles de prueba), sin necesidad de
+base de datos: validaciones del builder, cálculo de cada estrategia, RD01, RD02,
+rollback ante error y, del reporte de consumo, las rutas R1 a R5 de
+`ClasificadorCobertura.clasificar()` (caja blanca), RD04, RD06, los criterios de
+orden y los constructores.
+
+La caja negra del CU-08 (casos CN-01 a CN-17) corre contra la API y una base
+local de prueba, que el script vacía y carga con datos propios:
+
+```bash
+DATABASE_URL=postgresql://localhost/sigi_bkr_it3_prueba node test/integracion/cu08-caja-negra.js http://localhost:3101
+```
 
 ## Despliegue (GitHub Pages + Render + Supabase)
 
@@ -107,6 +122,9 @@ rollback ante error.
 | POST | `/api/movimientos/ingreso` | Reposición |
 | POST | `/api/movimientos/egreso` | Consumo (RD01) |
 | POST | `/api/movimientos/ajuste` | Recuento físico: fija el stock y asienta la diferencia |
+| GET | `/api/reportes/consumo` | Reporte de consumo (CU-08). `desde`, `hasta` (AAAA-MM-DD), `id_tipo` opcional, `orden=criticidad\|consumo\|nombre`. Lo guarda y devuelve tabla + serie del gráfico |
+| POST | `/api/reportes/consumo/:id/exportar` | Archivo del reporte guardado (CU-10). `{ formato: 'pdf' \| 'planilla' }` |
+| GET/PUT | `/api/reportes/umbrales` | Umbrales de cobertura vigentes / nuevos (CU-11). `{ dias_criticidad, dias_observacion, egresos_minimos }` |
 
 Los errores siempre responden `{ error, codigo, ...detalle }` con el status
 correspondiente: 400 validación, 404 inexistente, 409 conflicto, 422 regla de negocio.

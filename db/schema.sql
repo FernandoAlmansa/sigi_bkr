@@ -68,3 +68,58 @@ CREATE INDEX IF NOT EXISTS idx_insumos_tipo     ON insumos (id_tipo);
 CREATE INDEX IF NOT EXISTS idx_insumos_critico  ON insumos (estado_critico) WHERE activo;
 CREATE INDEX IF NOT EXISTS idx_mov_insumo_fecha ON movimientos_stock (id_insumo, fecha DESC);
 CREATE INDEX IF NOT EXISTS idx_mov_fecha        ON movimientos_stock (fecha DESC);
+
+-- ---------------------------------------------------------------------
+-- Iteración 3 — reporte de consumo por período (migración 010)
+-- ---------------------------------------------------------------------
+
+-- Umbrales de cobertura. No se sobrescriben: la fila con vigente_hasta nulo
+-- es la vigente; al cambiarlos se cierra esa y se crea otra.
+CREATE TABLE IF NOT EXISTS umbral_cobertura (
+  id                SERIAL PRIMARY KEY,
+  dias_observacion  INTEGER     NOT NULL,
+  dias_criticidad   INTEGER     NOT NULL CHECK (dias_criticidad > 0),
+  egresos_minimos   INTEGER     NOT NULL CHECK (egresos_minimos >= 1),
+  vigente_desde     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  vigente_hasta     TIMESTAMPTZ,
+  definido_por      VARCHAR(60) NOT NULL DEFAULT 'Sistema',
+  CONSTRAINT ck_umbral_observacion CHECK (dias_observacion > dias_criticidad)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_umbral_vigente ON umbral_cobertura ((vigente_hasta IS NULL))
+  WHERE vigente_hasta IS NULL;
+INSERT INTO umbral_cobertura (dias_observacion, dias_criticidad, egresos_minimos)
+SELECT 30, 10, 5 WHERE NOT EXISTS (SELECT 1 FROM umbral_cobertura);
+
+-- Cada reporte generado, con el período (fecha_desde, fecha_hasta, cantidad_dias),
+-- el alcance (id_tipo nulo = todos los tipos) y el umbral con que se clasificó.
+CREATE TABLE IF NOT EXISTS reporte_consumo (
+  id                SERIAL PRIMARY KEY,
+  fecha_generacion  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  fecha_desde       DATE        NOT NULL,
+  fecha_hasta       DATE        NOT NULL,
+  cantidad_dias     INTEGER     NOT NULL CHECK (cantidad_dias >= 1),
+  criterio_orden    VARCHAR(15) NOT NULL CHECK (criterio_orden IN ('CRITICIDAD', 'CONSUMO', 'NOMBRE')),
+  id_tipo           INTEGER     REFERENCES tipos_insumo(id),
+  id_umbral         INTEGER     NOT NULL REFERENCES umbral_cobertura(id),
+  solicitante       VARCHAR(60) NOT NULL DEFAULT 'Sistema',
+  CONSTRAINT ck_reporte_periodo CHECK (fecha_hasta >= fecha_desde)
+);
+
+-- Una línea por insumo del reporte. promedio_diario y dias_cobertura quedan
+-- nulos cuando no hay proyección (sin rotación o muestra insuficiente).
+CREATE TABLE IF NOT EXISTS linea_consumo (
+  id                SERIAL PRIMARY KEY,
+  id_reporte        INTEGER       NOT NULL REFERENCES reporte_consumo(id) ON DELETE CASCADE,
+  orden             INTEGER       NOT NULL,
+  id_insumo         INTEGER       NOT NULL REFERENCES insumos(id),
+  consumo_total     NUMERIC(12,3) NOT NULL CHECK (consumo_total >= 0),
+  cantidad_egresos  INTEGER       NOT NULL CHECK (cantidad_egresos >= 0),
+  promedio_diario   NUMERIC(12,4),
+  stock_al_generar  NUMERIC(12,3) NOT NULL,
+  dias_cobertura    NUMERIC(10,1),
+  estado_cobertura  VARCHAR(25)   NOT NULL CHECK (estado_cobertura IN
+                    ('CRITICA', 'EN_OBSERVACION', 'SUFICIENTE', 'MUESTRA_INSUFICIENTE', 'SIN_ROTACION')),
+  CONSTRAINT uq_linea_reporte_insumo UNIQUE (id_reporte, id_insumo)
+);
+
+CREATE INDEX IF NOT EXISTS idx_movimiento_tipo_fecha ON movimientos_stock (tipo_movimiento, fecha);

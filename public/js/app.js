@@ -241,8 +241,10 @@ const PAGINAS  = [...pages].map(p => p.id.replace('page-', ''));
 function showPage(pageId, { enfocar = true } = {}) {
   pages.forEach(p => p.classList.remove('active'));
   // Hay links a la misma página en la barra de arriba, la de abajo (celular) y la hoja "Más".
+  // El reporte de consumo es parte de Historial: se marca esa sección en la barra.
+  const seccion = pageId === 'reporte' ? 'historial' : pageId;
   navLinks.forEach(l => {
-    const activo = l.dataset.page === pageId;
+    const activo = l.dataset.page === seccion;
     l.classList.toggle('active', activo);
     if (activo) l.setAttribute('aria-current', 'page'); else l.removeAttribute('aria-current');
   });
@@ -264,6 +266,8 @@ function showPage(pageId, { enfocar = true } = {}) {
   // Acciones al cambiar de página
   if (pageId === 'dashboard') inicializarDashboard();
   if (pageId === 'historial') cargarHistorial({ inicial: true });
+  // reporte.js se carga después: si se entra directo a #reporte, se inicializa desde ahí.
+  if (pageId === 'reporte' && typeof inicializarReporte === 'function') inicializarReporte();
   if (pageId === 'egreso') refrescarAutocompletar();
   if (pageId === 'ingreso') poblarSelectIngreso();
   if (pageId === 'catalogo') cargarTipos();

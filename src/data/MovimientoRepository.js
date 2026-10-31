@@ -1,5 +1,6 @@
 const db = require('./db');
 const Movimiento = require('../domain/Movimiento');
+const { ZONA_TALLER } = require('../domain/reportes/fechas');
 
 class MovimientoRepository {
   constructor(ejecutor = db) {
@@ -61,6 +62,33 @@ class MovimientoRepository {
       params,
     );
     return rows.map(Movimiento.desdeFila);
+  }
+
+  /**
+   * Set de datos del reporte de consumo. Los tres filtros van en la misma
+   * consulta: sólo EGRESO (RD04: ingresos y ajustes no son consumo), fecha
+   * dentro del período (días de Argentina, ambos extremos incluidos) y, si se
+   * eligió, tipo de insumo. Sólo cuentan los insumos activos. Usa el índice
+   * idx_movimiento_tipo_fecha (RNF05).
+   */
+  async obtenerEgresos(periodo, idTipo = null, client) {
+    const params = [periodo.desde, periodo.hasta, ZONA_TALLER];
+    let filtroTipo = '';
+    if (idTipo) {
+      params.push(idTipo);
+      filtroTipo = `AND i.id_tipo = $${params.length}`;
+    }
+    const { rows } = await this._q(client)(
+      `SELECT m.id_insumo, m.cantidad, m.fecha
+       FROM movimientos_stock m
+       JOIN insumos i ON i.id = m.id_insumo
+       WHERE m.tipo_movimiento = 'EGRESO'
+         AND m.fecha >= ($1::date)::timestamp AT TIME ZONE $3
+         AND m.fecha <  ($2::date + 1)::timestamp AT TIME ZONE $3
+         AND i.activo ${filtroTipo}`,
+      params,
+    );
+    return rows.map((r) => ({ id_insumo: r.id_insumo, cantidad: Number(r.cantidad), fecha: r.fecha }));
   }
 }
 

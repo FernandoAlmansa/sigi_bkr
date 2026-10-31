@@ -5,5 +5,6 @@ router.use('/categorias', require('./categorias'));
 router.use('/unidades', require('./unidades'));
 router.use('/insumos', require('./insumos'));
 router.use('/movimientos', require('./movimientos'));
+router.use('/reportes', require('./reportes'));
 
 module.exports = router;
