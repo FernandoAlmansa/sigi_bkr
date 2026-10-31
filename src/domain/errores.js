@@ -42,10 +42,18 @@ class ErrorStockInsuficiente extends ErrorReglaNegocio {
   }
 }
 
+/** RD06: el período del reporte está mal formado o es futuro. `campo` indica qué fecha corregir. */
+class ErrorPeriodoInvalido extends ErrorApp {
+  constructor(mensaje, campo) {
+    super(mensaje, 400, 'RD06_PERIODO_INVALIDO', { campo });
+  }
+}
+
 module.exports = {
   ErrorApp,
   ErrorValidacion,
   ErrorNoEncontrado,
   ErrorReglaNegocio,
   ErrorStockInsuficiente,
+  ErrorPeriodoInvalido,
 };

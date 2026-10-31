@@ -183,6 +183,72 @@ const MIGRACIONES = [
       END $$;
     `,
   },
+  {
+    // Iteración 3 — reporte de consumo por período (CU-08) y umbrales de cobertura (CU-11).
+    // Sólo crea tablas e índices nuevos: no modifica ningún dato existente.
+    id: '010_reporte_consumo',
+    sql: `
+      CREATE TABLE IF NOT EXISTS umbral_cobertura (
+        id                SERIAL PRIMARY KEY,
+        dias_observacion  INTEGER     NOT NULL,
+        dias_criticidad   INTEGER     NOT NULL CHECK (dias_criticidad > 0),
+        egresos_minimos   INTEGER     NOT NULL CHECK (egresos_minimos >= 1),
+        vigente_desde     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        vigente_hasta     TIMESTAMPTZ,
+        definido_por      VARCHAR(60) NOT NULL DEFAULT 'Sistema',
+        CONSTRAINT ck_umbral_observacion CHECK (dias_observacion > dias_criticidad)
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_umbral_vigente ON umbral_cobertura ((vigente_hasta IS NULL))
+        WHERE vigente_hasta IS NULL;
+      INSERT INTO umbral_cobertura (dias_observacion, dias_criticidad, egresos_minimos)
+      SELECT 30, 10, 5 WHERE NOT EXISTS (SELECT 1 FROM umbral_cobertura);
+
+      CREATE TABLE IF NOT EXISTS reporte_consumo (
+        id                SERIAL PRIMARY KEY,
+        fecha_generacion  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        fecha_desde       DATE        NOT NULL,
+        fecha_hasta       DATE        NOT NULL,
+        cantidad_dias     INTEGER     NOT NULL CHECK (cantidad_dias >= 1),
+        criterio_orden    VARCHAR(15) NOT NULL CHECK (criterio_orden IN ('CRITICIDAD', 'CONSUMO', 'NOMBRE')),
+        id_tipo           INTEGER     REFERENCES tipos_insumo(id),
+        id_umbral         INTEGER     NOT NULL REFERENCES umbral_cobertura(id),
+        solicitante       VARCHAR(60) NOT NULL DEFAULT 'Sistema',
+        CONSTRAINT ck_reporte_periodo CHECK (fecha_hasta >= fecha_desde)
+      );
+
+      CREATE TABLE IF NOT EXISTS linea_consumo (
+        id                SERIAL PRIMARY KEY,
+        id_reporte        INTEGER       NOT NULL REFERENCES reporte_consumo(id) ON DELETE CASCADE,
+        orden             INTEGER       NOT NULL,
+        id_insumo         INTEGER       NOT NULL REFERENCES insumos(id),
+        consumo_total     NUMERIC(12,3) NOT NULL CHECK (consumo_total >= 0),
+        cantidad_egresos  INTEGER       NOT NULL CHECK (cantidad_egresos >= 0),
+        promedio_diario   NUMERIC(12,4),
+        stock_al_generar  NUMERIC(12,3) NOT NULL,
+        dias_cobertura    NUMERIC(10,1),
+        estado_cobertura  VARCHAR(25)   NOT NULL CHECK (estado_cobertura IN
+                          ('CRITICA', 'EN_OBSERVACION', 'SUFICIENTE', 'MUESTRA_INSUFICIENTE', 'SIN_ROTACION')),
+        CONSTRAINT uq_linea_reporte_insumo UNIQUE (id_reporte, id_insumo)
+      );
+
+      -- RNF05: egresos de un período sin recorrer todo el historial.
+      CREATE INDEX IF NOT EXISTS idx_movimiento_tipo_fecha ON movimientos_stock (tipo_movimiento, fecha);
+
+      DO $$
+      DECLARE t TEXT;
+      BEGIN
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+          FOREACH t IN ARRAY ARRAY['umbral_cobertura', 'reporte_consumo', 'linea_consumo'] LOOP
+            BEGIN
+              EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+            EXCEPTION WHEN insufficient_privilege THEN
+              RAISE NOTICE 'Sin permiso para activar RLS en %', t;
+            END;
+          END LOOP;
+        END IF;
+      END $$;
+    `,
+  },
 ];
 
 async function ejecutarMigraciones() {
